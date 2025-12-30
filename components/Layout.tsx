@@ -21,8 +21,8 @@ const Layout: React.FC<LayoutProps> = ({ children, activeView, setView }) => {
       {/* Sidebar */}
       <aside className="w-full md:w-64 bg-slate-900 text-white flex-shrink-0">
         <div className="p-6 border-b border-slate-800">
-          <h1 className="text-xl font-bold tracking-tight text-blue-400">EduManager</h1>
-          <p className="text-xs text-slate-400 mt-1">Smart Academy Admin</p>
+          <h1 className="text-xl font-bold tracking-tight text-blue-400">TwoTop Manager</h1>
+          <p className="text-xs text-slate-400 mt-1">Exam Big Data</p>
         </div>
         <nav className="p-4 space-y-2">
           {navItems.map((item) => (
@@ -49,9 +49,9 @@ const Layout: React.FC<LayoutProps> = ({ children, activeView, setView }) => {
             {navItems.find(n => n.id === activeView)?.label}
           </h2>
           <div className="flex items-center space-x-4">
-            <span className="text-sm font-medium text-slate-500">환영합니다, 관리자님</span>
-            <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center text-blue-600 font-bold">
-              A
+            <span className="text-sm font-medium text-slate-500">사람을 변화시키는 학원</span>
+            <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center text-blue-600 font-bold">
+              JANG
             </div>
           </div>
         </header>

@@ -1,5 +1,5 @@
 {
-  "name": "에듀매니저 (EduManager) - 학원 성적 관리 시스템",
+  "name": "Two Top Manager",
   "description": "학원 강사 및 알바생을 위한 스마트 성적 관리 솔루션입니다. 학생 명단 관리, 시험 성적 입력, 자동 등수 산출 및 등급(1-4등급) 분류 기능을 제공하며, Gemini AI를 통한 학습 분석 인사이트를 지원합니다.",
   "requestFramePermissions": []
 }
