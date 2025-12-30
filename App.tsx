@@ -9,7 +9,6 @@ import { ViewMode, Student, Exam } from './types';
 import { createClient } from '@supabase/supabase-js';
 
 // Supabase 클라이언트 초기화
-// Vercel 환경 변수에서 URL과 KEY를 가져옵니다.
 const supabaseUrl = (window as any).process?.env?.SUPABASE_URL || '';
 const supabaseAnonKey = (window as any).process?.env?.SUPABASE_ANON_KEY || '';
 
@@ -23,55 +22,71 @@ const App: React.FC = () => {
   const [exams, setExams] = useState<Exam[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // 초기 데이터 로드 및 실시간 구독 설정
+  // 1. 초기 데이터 로드 (Supabase 혹은 localStorage)
   useEffect(() => {
-    if (!supabase) {
-      setLoading(false);
-      return;
-    }
-
-    const fetchData = async () => {
+    const initData = async () => {
       setLoading(true);
-      const { data: studentsData } = await supabase.from('students').select('*');
-      const { data: examsData } = await supabase.from('exams').select('*');
       
-      if (studentsData) setStudents(studentsData);
-      if (examsData) setExams(examsData);
+      if (supabase) {
+        try {
+          const { data: studentsData } = await supabase.from('students').select('*');
+          const { data: examsData } = await supabase.from('exams').select('*');
+          
+          if (studentsData) setStudents(studentsData);
+          if (examsData) setExams(examsData);
+        } catch (error) {
+          console.error("Supabase load error, falling back to local:", error);
+          loadFromLocal();
+        }
+      } else {
+        loadFromLocal();
+      }
+      
       setLoading(false);
     };
 
-    fetchData();
-
-    // 실시간 구독: 학생들이나 시험 데이터가 변경되면 즉시 반영
-    const studentsSubscription = supabase
-      .channel('students-all')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'students' }, (payload) => {
-        if (payload.eventType === 'INSERT') {
-          setStudents(prev => [...prev, payload.new as Student]);
-        } else if (payload.eventType === 'UPDATE') {
-          setStudents(prev => prev.map(s => s.id === (payload.new as Student).id ? (payload.new as Student) : s));
-        } else if (payload.eventType === 'DELETE') {
-          setStudents(prev => prev.filter(s => s.id !== payload.old.id));
-        }
-      })
-      .subscribe();
-
-    const examsSubscription = supabase
-      .channel('exams-all')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'exams' }, (payload) => {
-        if (payload.eventType === 'INSERT') {
-          setExams(prev => [...prev, payload.new as Exam]);
-        } else if (payload.eventType === 'DELETE') {
-          setExams(prev => prev.filter(e => e.id !== payload.old.id));
-        }
-      })
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(studentsSubscription);
-      supabase.removeChannel(examsSubscription);
+    const loadFromLocal = () => {
+      const savedStudents = localStorage.getItem('students');
+      const savedExams = localStorage.getItem('exams');
+      if (savedStudents) setStudents(JSON.parse(savedStudents));
+      if (savedExams) setExams(JSON.parse(savedExams));
     };
+
+    initData();
+
+    // 실시간 구독 (Supabase가 있을 때만)
+    if (supabase) {
+      const studentsSub = supabase
+        .channel('students-all')
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'students' }, (payload) => {
+          if (payload.eventType === 'INSERT') setStudents(prev => [...prev, payload.new as Student]);
+          if (payload.eventType === 'UPDATE') setStudents(prev => prev.map(s => s.id === (payload.new as Student).id ? (payload.new as Student) : s));
+          if (payload.eventType === 'DELETE') setStudents(prev => prev.filter(s => s.id !== payload.old.id));
+        })
+        .subscribe();
+
+      const examsSub = supabase
+        .channel('exams-all')
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'exams' }, (payload) => {
+          if (payload.eventType === 'INSERT') setExams(prev => [...prev, payload.new as Exam]);
+          if (payload.eventType === 'DELETE') setExams(prev => prev.filter(e => e.id !== payload.old.id));
+        })
+        .subscribe();
+
+      return () => {
+        supabase.removeChannel(studentsSub);
+        supabase.removeChannel(examsSub);
+      };
+    }
   }, []);
+
+  // 2. 로컬 저장소 동기화 (Supabase가 없을 때만 작동)
+  useEffect(() => {
+    if (!supabase && !loading) {
+      localStorage.setItem('students', JSON.stringify(students));
+      localStorage.setItem('exams', JSON.stringify(exams));
+    }
+  }, [students, exams, loading]);
 
   const addStudent = async (name: string, school: string, phone: string) => {
     const newStudent: Student = {
@@ -84,10 +99,8 @@ const App: React.FC = () => {
 
     if (supabase) {
       await supabase.from('students').insert([newStudent]);
-      // 실시간 구독자가 아니더라도 즉각적인 UI 반응을 위해 상태 업데이트는 구독 로직에서 처리되거나
-      // 혹은 명시적으로 추가할 수 있으나 구독 로직이 중복 방지를 처리함
     } else {
-      setStudents([...students, newStudent]);
+      setStudents(prev => [...prev, newStudent]);
     }
   };
 
@@ -95,7 +108,7 @@ const App: React.FC = () => {
     if (supabase) {
       await supabase.from('students').update(updatedStudent).eq('id', updatedStudent.id);
     } else {
-      setStudents(students.map(s => s.id === updatedStudent.id ? updatedStudent : s));
+      setStudents(prev => prev.map(s => s.id === updatedStudent.id ? updatedStudent : s));
     }
   };
 
@@ -104,7 +117,7 @@ const App: React.FC = () => {
       if (supabase) {
         await supabase.from('students').delete().eq('id', id);
       } else {
-        setStudents(students.filter(s => s.id !== id));
+        setStudents(prev => prev.filter(s => s.id !== id));
       }
     }
   };
@@ -113,7 +126,7 @@ const App: React.FC = () => {
     if (supabase) {
       await supabase.from('exams').insert([exam]);
     } else {
-      setExams([...exams, exam]);
+      setExams(prev => [...prev, exam]);
     }
   };
 
@@ -122,7 +135,7 @@ const App: React.FC = () => {
       if (supabase) {
         await supabase.from('exams').delete().eq('id', id);
       } else {
-        setExams(exams.filter(e => e.id !== id));
+        setExams(prev => prev.filter(e => e.id !== id));
       }
     }
   };
@@ -140,40 +153,29 @@ const App: React.FC = () => {
 
   const renderContent = () => {
     switch (view) {
-      case ViewMode.DASHBOARD:
-        return <Dashboard students={students} exams={exams} />;
-      case ViewMode.STUDENTS:
-        return (
-          <StudentManagement 
-            students={students} 
-            exams={exams}
-            onAddStudent={addStudent} 
-            onUpdateStudent={updateStudent}
-            onDeleteStudent={deleteStudent} 
-          />
-        );
-      case ViewMode.EXAMS:
-        return (
-          <ExamManagement 
-            students={students} 
-            exams={exams} 
-            onAddExam={addExam} 
-            onDeleteExam={deleteExam} 
-          />
-        );
-      case ViewMode.ANALYTICS:
-        return <Analytics students={students} exams={exams} />;
-      default:
-        return <Dashboard students={students} exams={exams} />;
+      case ViewMode.DASHBOARD: return <Dashboard students={students} exams={exams} />;
+      case ViewMode.STUDENTS: return <StudentManagement students={students} exams={exams} onAddStudent={addStudent} onUpdateStudent={updateStudent} onDeleteStudent={deleteStudent} />;
+      case ViewMode.EXAMS: return <ExamManagement students={students} exams={exams} onAddExam={addExam} onDeleteExam={deleteExam} />;
+      case ViewMode.ANALYTICS: return <Analytics students={students} exams={exams} />;
+      default: return <Dashboard students={students} exams={exams} />;
     }
   };
 
   return (
     <Layout activeView={view} setView={setView}>
       {!supabase && (
-        <div className="mb-6 p-4 bg-amber-50 border border-amber-200 rounded-xl flex items-center text-amber-800 text-sm font-medium">
-          <span className="mr-3 text-lg">⚠️</span>
-          데이터베이스 환경 변수가 설정되지 않았습니다. 현재 데이터는 브라우저에 임시 저장됩니다.
+        <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-xl flex items-center justify-between text-blue-800 text-sm">
+          <div className="flex items-center font-medium">
+            <span className="mr-3 text-lg">💾</span>
+            현재 '로컬 브라우저'에 자동 저장 중입니다. (기기 간 공유 불가)
+          </div>
+          <div className="text-xs bg-blue-100 px-2 py-1 rounded">Vercel 환경변수 설정 시 클라우드로 전환됩니다</div>
+        </div>
+      )}
+      {supabase && (
+        <div className="mb-6 p-3 bg-green-50 border border-green-200 rounded-xl flex items-center text-green-700 text-sm font-medium animate-in fade-in duration-500">
+          <span className="mr-3">☁️</span>
+          클라우드 데이터베이스와 실시간 동기화 중입니다.
         </div>
       )}
       {renderContent()}
