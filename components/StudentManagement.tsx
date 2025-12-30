@@ -22,12 +22,34 @@ const StudentManagement: React.FC<StudentManagementProps> = ({
   const [school, setSchool] = useState('');
   const [phone, setPhone] = useState('');
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [filterSchool, setFilterSchool] = useState<string>('all');
 
   // Editing state
   const [editingStudent, setEditingStudent] = useState<Student | null>(null);
   const [editName, setEditName] = useState('');
   const [editSchool, setEditSchool] = useState('');
   const [editPhone, setEditPhone] = useState('');
+
+  // Get unique schools for filtering
+  const uniqueSchools = useMemo(() => {
+    const schools = students
+      .map(s => s.school?.trim())
+      .filter((s): s is string => !!s);
+    return Array.from(new Set(schools)).sort();
+  }, [students]);
+
+  // Sort and Filter students
+  const filteredAndSortedStudents = useMemo(() => {
+    let list = [...students];
+    
+    // 1. Filter by school
+    if (filterSchool !== 'all') {
+      list = list.filter(s => s.school === filterSchool);
+    }
+    
+    // 2. Sort by name (가나다 순)
+    return list.sort((a, b) => a.name.localeCompare(b.name, 'ko'));
+  }, [students, filterSchool]);
 
   // Determine pass/fail based on the latest exam
   const studentStatusMap = useMemo(() => {
@@ -80,10 +102,17 @@ const StudentManagement: React.FC<StudentManagementProps> = ({
   };
 
   const toggleSelectAll = () => {
-    if (selectedIds.size === students.length && students.length > 0) {
-      setSelectedIds(new Set());
+    const visibleIds = filteredAndSortedStudents.map(s => s.id);
+    const allVisibleSelected = visibleIds.every(id => selectedIds.has(id));
+
+    if (allVisibleSelected && visibleIds.length > 0) {
+      const next = new Set(selectedIds);
+      visibleIds.forEach(id => next.delete(id));
+      setSelectedIds(next);
     } else {
-      setSelectedIds(new Set(students.map(s => s.id)));
+      const next = new Set(selectedIds);
+      visibleIds.forEach(id => next.add(id));
+      setSelectedIds(next);
     }
   };
 
@@ -96,7 +125,7 @@ const StudentManagement: React.FC<StudentManagementProps> = ({
 
   const selectByStatus = (pass: boolean) => {
     const next = new Set<string>();
-    students.forEach(s => {
+    filteredAndSortedStudents.forEach(s => {
       const status = studentStatusMap[s.id];
       if (pass && status?.isPass) next.add(s.id);
       if (!pass && (!status || !status.isPass)) next.add(s.id);
@@ -130,9 +159,6 @@ const StudentManagement: React.FC<StudentManagementProps> = ({
       return;
     }
 
-    // Modern mobile OS recipient separator is comma (,)
-    // For iOS, commas are standard since iOS 10.
-    // For Android, commas are also standard.
     const separator = ',';
     const smsUrl = `sms:${numbers.join(separator)}`;
     
@@ -142,7 +168,6 @@ const StudentManagement: React.FC<StudentManagementProps> = ({
     document.body.appendChild(link);
     link.click();
     
-    // Fallback message as multi-SMS links can be unstable on some browsers
     setTimeout(() => {
       document.body.removeChild(link);
     }, 100);
@@ -185,47 +210,65 @@ const StudentManagement: React.FC<StudentManagementProps> = ({
         </form>
       </div>
 
-      {/* Bulk Action Controls */}
-      <div className="flex flex-wrap items-center justify-between gap-4 bg-slate-100 p-4 rounded-xl border border-slate-200">
-        <div className="flex items-center space-x-2">
-          <span className="text-sm font-bold text-slate-600 mr-2">빠른 선택:</span>
-          <button
-            onClick={() => selectByStatus(true)}
-            className="bg-green-100 text-green-700 px-3 py-1.5 rounded-lg text-sm font-bold hover:bg-green-200 transition-colors border border-green-200"
-          >
-            ✅ 최근 시험 통과자
-          </button>
-          <button
-            onClick={() => selectByStatus(false)}
-            className="bg-red-100 text-red-700 px-3 py-1.5 rounded-lg text-sm font-bold hover:bg-red-200 transition-colors border border-red-200"
-          >
-            ❌ 최근 시험 탈락자
-          </button>
-          <button
-            onClick={() => setSelectedIds(new Set())}
-            className="text-slate-500 text-sm hover:underline px-2"
-          >
-            선택 해제
-          </button>
-        </div>
-        
-        {selectedIds.size > 0 && (
-          <div className="flex items-center space-x-2 animate-in fade-in zoom-in duration-200">
-            <span className="text-sm font-bold text-blue-600 mr-2">{selectedIds.size}명 선택됨</span>
-            <button
-              onClick={handleCopyNumbers}
-              className="bg-white text-slate-700 border border-slate-300 px-4 py-2 rounded-lg font-bold hover:bg-slate-50 flex items-center shadow-sm"
+      {/* Filter and Bulk Action Controls */}
+      <div className="flex flex-col gap-4 bg-slate-100 p-4 rounded-xl border border-slate-200">
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          <div className="flex items-center space-x-2">
+            <span className="text-sm font-bold text-slate-600 mr-2">학교 필터:</span>
+            <select
+              value={filterSchool}
+              onChange={(e) => setFilterSchool(e.target.value)}
+              className="bg-white border border-slate-300 text-slate-700 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block p-2 outline-none"
             >
-              <span className="mr-2">📋</span> 번호 복사
+              <option value="all">전체 학교 ({students.length})</option>
+              {uniqueSchools.map(sch => (
+                <option key={sch} value={sch}>{sch}</option>
+              ))}
+            </select>
+            
+            <div className="h-6 w-px bg-slate-300 mx-2" />
+            
+            <span className="text-sm font-bold text-slate-600 mr-2">빠른 선택:</span>
+            <button
+              onClick={() => selectByStatus(true)}
+              className="bg-green-100 text-green-700 px-3 py-1.5 rounded-lg text-sm font-bold hover:bg-green-200 transition-colors border border-green-200"
+            >
+              ✅ 통과자
             </button>
             <button
-              onClick={handleBulkSMS}
-              className="bg-indigo-600 text-white px-4 py-2 rounded-lg font-bold hover:bg-indigo-700 shadow-lg shadow-indigo-100 flex items-center"
+              onClick={() => selectByStatus(false)}
+              className="bg-red-100 text-red-700 px-3 py-1.5 rounded-lg text-sm font-bold hover:bg-red-200 transition-colors border border-red-200"
             >
-              <span className="mr-2">✉</span> 단체 문자
+              ❌ 탈락자
             </button>
           </div>
-        )}
+
+          <div className="flex items-center space-x-2">
+            {selectedIds.size > 0 && (
+              <div className="flex items-center space-x-2 animate-in fade-in zoom-in duration-200">
+                <span className="text-sm font-bold text-blue-600 mr-2">{selectedIds.size}명 선택됨</span>
+                <button
+                  onClick={handleCopyNumbers}
+                  className="bg-white text-slate-700 border border-slate-300 px-4 py-2 rounded-lg font-bold hover:bg-slate-50 flex items-center shadow-sm"
+                >
+                  <span className="mr-2">📋</span> 번호 복사
+                </button>
+                <button
+                  onClick={handleBulkSMS}
+                  className="bg-indigo-600 text-white px-4 py-2 rounded-lg font-bold hover:bg-indigo-700 shadow-lg shadow-indigo-100 flex items-center"
+                >
+                  <span className="mr-2">✉</span> 단체 문자
+                </button>
+              </div>
+            )}
+            <button
+              onClick={() => setSelectedIds(new Set())}
+              className="text-slate-500 text-sm hover:underline px-2"
+            >
+              선택 해제
+            </button>
+          </div>
+        </div>
       </div>
 
       {/* Students Table */}
@@ -237,12 +280,12 @@ const StudentManagement: React.FC<StudentManagementProps> = ({
                 <th className="px-6 py-3 font-semibold w-12 text-center">
                   <input
                     type="checkbox"
-                    checked={students.length > 0 && selectedIds.size === students.length}
+                    checked={filteredAndSortedStudents.length > 0 && filteredAndSortedStudents.every(s => selectedIds.has(s.id))}
                     onChange={toggleSelectAll}
                     className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
                   />
                 </th>
-                <th className="px-6 py-3 font-semibold">이름</th>
+                <th className="px-6 py-3 font-semibold">이름 (가나다순)</th>
                 <th className="px-6 py-3 font-semibold">학교</th>
                 <th className="px-6 py-3 font-semibold">상태</th>
                 <th className="px-6 py-3 font-semibold">연락처</th>
@@ -250,14 +293,14 @@ const StudentManagement: React.FC<StudentManagementProps> = ({
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {students.length === 0 ? (
+              {filteredAndSortedStudents.length === 0 ? (
                 <tr>
                   <td colSpan={6} className="px-6 py-8 text-center text-slate-400">
-                    등록된 학생이 없습니다.
+                    {filterSchool === 'all' ? '등록된 학생이 없습니다.' : '이 학교에 소속된 학생이 없습니다.'}
                   </td>
                 </tr>
               ) : (
-                students.map((student) => {
+                filteredAndSortedStudents.map((student) => {
                   const status = studentStatusMap[student.id];
                   return (
                     <tr 
