@@ -1,20 +1,13 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import Layout from './components/Layout';
 import Dashboard from './components/Dashboard';
 import StudentManagement from './components/StudentManagement';
 import ExamManagement from './components/ExamManagement';
 import Analytics from './components/Analytics';
-import { ViewMode, Student, Exam } from './types';
+import Settings from './components/Settings';
+import { ViewMode, Student, Exam, SupabaseConfig } from './types';
 import { createClient } from '@supabase/supabase-js';
-
-// Supabase 클라이언트 초기화
-const supabaseUrl = (window as any).process?.env?.SUPABASE_URL || '';
-const supabaseAnonKey = (window as any).process?.env?.SUPABASE_ANON_KEY || '';
-
-const supabase = supabaseUrl && supabaseAnonKey 
-  ? createClient(supabaseUrl, supabaseAnonKey) 
-  : null;
 
 const App: React.FC = () => {
   const [view, setView] = useState<ViewMode>(ViewMode.DASHBOARD);
@@ -22,26 +15,41 @@ const App: React.FC = () => {
   const [exams, setExams] = useState<Exam[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // 1. 초기 데이터 로드 (Supabase 혹은 localStorage)
+  // Supabase 설정 로드
+  const [sbConfig, setSbConfig] = useState<SupabaseConfig | null>(() => {
+    const saved = localStorage.getItem('supabase_config');
+    return saved ? JSON.parse(saved) : null;
+  });
+
+  // 클라이언트 생성
+  const supabase = useMemo(() => {
+    if (sbConfig?.url && sbConfig?.anonKey) {
+      return createClient(sbConfig.url, sbConfig.anonKey);
+    }
+    return null;
+  }, [sbConfig]);
+
+  // 초기 데이터 로드 및 실시간 구독
   useEffect(() => {
     const initData = async () => {
       setLoading(true);
       
       if (supabase) {
         try {
-          const { data: studentsData } = await supabase.from('students').select('*');
-          const { data: examsData } = await supabase.from('exams').select('*');
+          const { data: studentsData, error: sErr } = await supabase.from('students').select('*');
+          const { data: examsData, error: eErr } = await supabase.from('exams').select('*');
           
+          if (sErr || eErr) throw new Error("Cloud fetch failed");
+
           if (studentsData) setStudents(studentsData);
           if (examsData) setExams(examsData);
         } catch (error) {
-          console.error("Supabase load error, falling back to local:", error);
+          console.warn("Falling back to local data:", error);
           loadFromLocal();
         }
       } else {
         loadFromLocal();
       }
-      
       setLoading(false);
     };
 
@@ -54,40 +62,34 @@ const App: React.FC = () => {
 
     initData();
 
-    // 실시간 구독 (Supabase가 있을 때만)
     if (supabase) {
       const studentsSub = supabase
-        .channel('students-all')
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'students' }, (payload) => {
-          if (payload.eventType === 'INSERT') setStudents(prev => [...prev, payload.new as Student]);
-          if (payload.eventType === 'UPDATE') setStudents(prev => prev.map(s => s.id === (payload.new as Student).id ? (payload.new as Student) : s));
-          if (payload.eventType === 'DELETE') setStudents(prev => prev.filter(s => s.id !== payload.old.id));
+        .channel('db-changes')
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'students' }, async () => {
+          const { data } = await supabase.from('students').select('*');
+          if (data) setStudents(data);
         })
-        .subscribe();
-
-      const examsSub = supabase
-        .channel('exams-all')
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'exams' }, (payload) => {
-          if (payload.eventType === 'INSERT') setExams(prev => [...prev, payload.new as Exam]);
-          if (payload.eventType === 'DELETE') setExams(prev => prev.filter(e => e.id !== payload.old.id));
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'exams' }, async () => {
+          const { data } = await supabase.from('exams').select('*');
+          if (data) setExams(data);
         })
         .subscribe();
 
       return () => {
         supabase.removeChannel(studentsSub);
-        supabase.removeChannel(examsSub);
       };
     }
-  }, []);
+  }, [supabase]);
 
-  // 2. 로컬 저장소 동기화 (Supabase가 없을 때만 작동)
+  // 데이터 변경 감지 시 로컬 백업 (클라우드 미연결 시)
   useEffect(() => {
     if (!supabase && !loading) {
       localStorage.setItem('students', JSON.stringify(students));
       localStorage.setItem('exams', JSON.stringify(exams));
     }
-  }, [students, exams, loading]);
+  }, [students, exams, loading, supabase]);
 
+  // 데이터 조작 함수들 (클라우드 우선 처리)
   const addStudent = async (name: string, school: string, phone: string) => {
     const newStudent: Student = {
       id: Math.random().toString(36).substr(2, 9),
@@ -113,7 +115,7 @@ const App: React.FC = () => {
   };
 
   const deleteStudent = async (id: string) => {
-    if (window.confirm('정말 이 학생을 삭제하시겠습니까?')) {
+    if (window.confirm('정말 삭제하시겠습니까? 클라우드 연결 시 모든 기기에서 삭제됩니다.')) {
       if (supabase) {
         await supabase.from('students').delete().eq('id', id);
       } else {
@@ -131,7 +133,7 @@ const App: React.FC = () => {
   };
 
   const deleteExam = async (id: string) => {
-    if (window.confirm('이 시험 기록을 삭제하시겠습니까?')) {
+    if (window.confirm('시험 기록을 삭제하시겠습니까?')) {
       if (supabase) {
         await supabase.from('exams').delete().eq('id', id);
       } else {
@@ -140,44 +142,53 @@ const App: React.FC = () => {
     }
   };
 
-  if (loading && supabase) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-slate-50">
-        <div className="text-center">
-          <div className="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-          <p className="text-slate-600 font-bold">클라우드 데이터를 불러오는 중...</p>
-        </div>
-      </div>
-    );
-  }
+  const pushToCloud = async () => {
+    if (!supabase) return;
+    const localStudents = JSON.parse(localStorage.getItem('students') || '[]');
+    const localExams = JSON.parse(localStorage.getItem('exams') || '[]');
+    
+    // upsert를 사용하여 중복 방지
+    if (localStudents.length > 0) await supabase.from('students').upsert(localStudents);
+    if (localExams.length > 0) await supabase.from('exams').upsert(localExams);
+
+    const { data: s } = await supabase.from('students').select('*');
+    const { data: e } = await supabase.from('exams').select('*');
+    if (s) setStudents(s);
+    if (e) setExams(e);
+  };
 
   const renderContent = () => {
+    if (loading) return (
+      <div className="flex flex-col items-center justify-center py-32 space-y-4">
+        <div className="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+        <p className="text-slate-500 font-black animate-pulse uppercase tracking-widest text-xs">Syncing with Cloud Database...</p>
+      </div>
+    );
+
     switch (view) {
       case ViewMode.DASHBOARD: return <Dashboard students={students} exams={exams} />;
       case ViewMode.STUDENTS: return <StudentManagement students={students} exams={exams} onAddStudent={addStudent} onUpdateStudent={updateStudent} onDeleteStudent={deleteStudent} />;
       case ViewMode.EXAMS: return <ExamManagement students={students} exams={exams} onAddExam={addExam} onDeleteExam={deleteExam} />;
       case ViewMode.ANALYTICS: return <Analytics students={students} exams={exams} />;
+      case ViewMode.SETTINGS: return (
+        <Settings 
+          config={sbConfig} 
+          onSaveConfig={(c) => { localStorage.setItem('supabase_config', JSON.stringify(c)); setSbConfig(c); }}
+          onClearConfig={() => { localStorage.removeItem('supabase_config'); setSbConfig(null); }}
+          onPushToCloud={pushToCloud}
+          localData={{
+            students: JSON.parse(localStorage.getItem('students') || '[]'),
+            exams: JSON.parse(localStorage.getItem('exams') || '[]')
+          }}
+          isCloudConnected={!!supabase}
+        />
+      );
       default: return <Dashboard students={students} exams={exams} />;
     }
   };
 
   return (
-    <Layout activeView={view} setView={setView}>
-      {!supabase && (
-        <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-xl flex items-center justify-between text-blue-800 text-sm">
-          <div className="flex items-center font-medium">
-            <span className="mr-3 text-lg">💾</span>
-            현재 '로컬 브라우저'에 자동 저장 중입니다. (기기 간 공유 불가)
-          </div>
-          <div className="text-xs bg-blue-100 px-2 py-1 rounded">Vercel 환경변수 설정 시 클라우드로 전환됩니다</div>
-        </div>
-      )}
-      {supabase && (
-        <div className="mb-6 p-3 bg-green-50 border border-green-200 rounded-xl flex items-center text-green-700 text-sm font-medium animate-in fade-in duration-500">
-          <span className="mr-3">☁️</span>
-          클라우드 데이터베이스와 실시간 동기화 중입니다.
-        </div>
-      )}
+    <Layout activeView={view} setView={setView} isCloudConnected={!!supabase}>
       {renderContent()}
     </Layout>
   );

@@ -18,7 +18,7 @@ export interface Exam {
   title: string;
   date: string;
   maxScore: number;
-  passThreshold?: number; // Added: Score required to pass
+  passThreshold?: number; 
   scores: ScoreEntry[];
 }
 
@@ -29,7 +29,7 @@ export interface CalculatedResult {
   rank: number;
   percentile: number;
   grade: 1 | 2 | 3 | 4;
-  isPassed?: boolean; // Added: Based on passThreshold
+  isPassed?: boolean;
 }
 
 export interface ExamSummary {
@@ -49,5 +49,11 @@ export enum ViewMode {
   DASHBOARD = 'DASHBOARD',
   STUDENTS = 'STUDENTS',
   EXAMS = 'EXAMS',
-  ANALYTICS = 'ANALYTICS'
+  ANALYTICS = 'ANALYTICS',
+  SETTINGS = 'SETTINGS'
+}
+
+export interface SupabaseConfig {
+  url: string;
+  anonKey: string;
 }
