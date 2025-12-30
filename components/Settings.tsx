@@ -26,7 +26,7 @@ const Settings: React.FC<SettingsProps> = ({
 
   const sqlCode = `
 -- 1. 학생 테이블 생성
-CREATE TABLE students (
+CREATE TABLE IF NOT EXISTS students (
   id TEXT PRIMARY KEY,
   name TEXT NOT NULL,
   school TEXT,
@@ -36,7 +36,7 @@ CREATE TABLE students (
 );
 
 -- 2. 시험 테이블 생성
-CREATE TABLE exams (
+CREATE TABLE IF NOT EXISTS exams (
   id TEXT PRIMARY KEY,
   title TEXT NOT NULL,
   date TEXT NOT NULL,
@@ -45,8 +45,20 @@ CREATE TABLE exams (
   scores JSONB NOT NULL
 );
 
--- 3. 실시간 동기화 활성화 (선택 사항)
+-- 3. 실시간 동기화 활성화
+-- (이미 활성화 되어있다면 에러가 날 수 있으나 무시해도 됩니다)
 ALTER PUBLICATION supabase_realtime ADD TABLE students, exams;
+
+-- 4. 보안 정책(RLS) 설정: 누구나 데이터를 쓰고 읽을 수 있게 허용
+-- (RLS 에러가 날 때 이 부분을 다시 실행하세요)
+ALTER TABLE students ENABLE ROW LEVEL SECURITY;
+ALTER TABLE exams ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Enable access for all" ON students;
+DROP POLICY IF EXISTS "Enable access for all" ON exams;
+
+CREATE POLICY "Enable access for all" ON students FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Enable access for all" ON exams FOR ALL USING (true) WITH CHECK (true);
   `.trim();
 
   const handleSave = (e: React.FormEvent) => {
@@ -82,7 +94,7 @@ ALTER PUBLICATION supabase_realtime ADD TABLE students, exams;
             </div>
             <div className="bg-white/10 p-5 rounded-2xl border border-white/10">
               <p className="text-blue-400 font-black text-xs mb-2 uppercase tracking-widest">Step 02</p>
-              <p className="font-bold text-sm mb-2">데이터 테이블 세팅</p>
+              <p className="font-bold text-sm mb-2">데이터 테이블 및 정책 세팅</p>
               <button 
                 onClick={() => setShowSql(!showSql)}
                 className="text-[10px] bg-white/20 px-2 py-1 rounded font-black hover:bg-white/30 transition-colors"
@@ -108,7 +120,7 @@ ALTER PUBLICATION supabase_realtime ADD TABLE students, exams;
                 </button>
                 <pre className="overflow-x-auto">{sqlCode}</pre>
               </div>
-              <p className="text-[11px] text-slate-400 mt-2 italic">* Supabase 왼쪽 메뉴의 &apos;SQL Editor&apos; &rarr; &apos;New Query&apos;에 붙여넣고 &apos;Run&apos;을 누르세요.</p>
+              <p className="text-[11px] text-slate-400 mt-2 italic">* Supabase 왼쪽 메뉴의 &apos;SQL Editor&apos; &rarr; &apos;New Query&apos;에 붙여넣고 &apos;Run&apos;을 누르세요. (RLS 에러 해결 포함)</p>
             </div>
           )}
         </div>
