@@ -62,21 +62,31 @@ const App: React.FC = () => {
 
     initData();
 
+    // 실시간 동기화 (서버에서 다른 기기가 변경했을 때 반영용)
     if (supabase) {
-      const studentsSub = supabase
+      const channel = supabase
         .channel('db-changes')
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'students' }, async () => {
-          const { data } = await supabase.from('students').select('*');
-          if (data) setStudents(data);
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'students' }, (payload) => {
+          // 중복 업데이트 방지를 위해 간단한 처리만 수행
+          if (payload.eventType === 'INSERT') {
+            setStudents(prev => {
+              if (prev.find(s => s.id === payload.new.id)) return prev;
+              return [...prev, payload.new as Student];
+            });
+          }
         })
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'exams' }, async () => {
-          const { data } = await supabase.from('exams').select('*');
-          if (data) setExams(data);
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'exams' }, (payload) => {
+          if (payload.eventType === 'INSERT') {
+            setExams(prev => {
+              if (prev.find(e => e.id === payload.new.id)) return prev;
+              return [...prev, payload.new as Exam];
+            });
+          }
         })
         .subscribe();
 
       return () => {
-        supabase.removeChannel(studentsSub);
+        supabase.removeChannel(channel);
       };
     }
   }, [supabase]);
@@ -89,7 +99,7 @@ const App: React.FC = () => {
     }
   }, [students, exams, loading, supabase]);
 
-  // 데이터 조작 함수들 (클라우드 우선 처리)
+  // 데이터 조작 함수들
   const addStudent = async (name: string, school: string, phone: string) => {
     const newStudent: Student = {
       id: Math.random().toString(36).substr(2, 9),
@@ -100,45 +110,62 @@ const App: React.FC = () => {
     };
 
     if (supabase) {
-      await supabase.from('students').insert([newStudent]);
-    } else {
-      setStudents(prev => [...prev, newStudent]);
+      const { error } = await supabase.from('students').insert([newStudent]);
+      if (error) {
+        console.error("Insert error:", error);
+        alert(`학생 등록 실패: ${error.message}\nSupabase 테이블이 올바르게 생성되었는지 확인하세요.`);
+        return;
+      }
     }
+    // 성공 시 또는 로컬 모드일 때 상태 업데이트
+    setStudents(prev => [...prev, newStudent]);
   };
 
   const updateStudent = async (updatedStudent: Student) => {
     if (supabase) {
-      await supabase.from('students').update(updatedStudent).eq('id', updatedStudent.id);
-    } else {
-      setStudents(prev => prev.map(s => s.id === updatedStudent.id ? updatedStudent : s));
+      const { error } = await supabase.from('students').update(updatedStudent).eq('id', updatedStudent.id);
+      if (error) {
+        alert("수정 실패: " + error.message);
+        return;
+      }
     }
+    setStudents(prev => prev.map(s => s.id === updatedStudent.id ? updatedStudent : s));
   };
 
   const deleteStudent = async (id: string) => {
     if (window.confirm('정말 삭제하시겠습니까? 클라우드 연결 시 모든 기기에서 삭제됩니다.')) {
       if (supabase) {
-        await supabase.from('students').delete().eq('id', id);
-      } else {
-        setStudents(prev => prev.filter(s => s.id !== id));
+        const { error } = await supabase.from('students').delete().eq('id', id);
+        if (error) {
+          alert("삭제 실패: " + error.message);
+          return;
+        }
       }
+      setStudents(prev => prev.filter(s => s.id !== id));
     }
   };
 
   const addExam = async (exam: Exam) => {
     if (supabase) {
-      await supabase.from('exams').insert([exam]);
-    } else {
-      setExams(prev => [...prev, exam]);
+      const { error } = await supabase.from('exams').insert([exam]);
+      if (error) {
+        alert("시험 등록 실패: " + error.message);
+        return;
+      }
     }
+    setExams(prev => [...prev, exam]);
   };
 
   const deleteExam = async (id: string) => {
     if (window.confirm('시험 기록을 삭제하시겠습니까?')) {
       if (supabase) {
-        await supabase.from('exams').delete().eq('id', id);
-      } else {
-        setExams(prev => prev.filter(e => e.id !== id));
+        const { error } = await supabase.from('exams').delete().eq('id', id);
+        if (error) {
+          alert("시험 삭제 실패: " + error.message);
+          return;
+        }
       }
+      setExams(prev => prev.filter(e => e.id !== id));
     }
   };
 
@@ -147,7 +174,6 @@ const App: React.FC = () => {
     const localStudents = JSON.parse(localStorage.getItem('students') || '[]');
     const localExams = JSON.parse(localStorage.getItem('exams') || '[]');
     
-    // upsert를 사용하여 중복 방지
     if (localStudents.length > 0) await supabase.from('students').upsert(localStudents);
     if (localExams.length > 0) await supabase.from('exams').upsert(localExams);
 
