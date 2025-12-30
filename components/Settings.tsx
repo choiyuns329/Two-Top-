@@ -108,7 +108,7 @@ ALTER PUBLICATION supabase_realtime ADD TABLE students, exams;
                 </button>
                 <pre className="overflow-x-auto">{sqlCode}</pre>
               </div>
-              <p className="text-[11px] text-slate-400 mt-2 italic">* Supabase 왼쪽 메뉴의 'SQL Editor' -> 'New Query'에 붙여넣고 'Run'을 누르세요.</p>
+              <p className="text-[11px] text-slate-400 mt-2 italic">* Supabase 왼쪽 메뉴의 &apos;SQL Editor&apos; &rarr; &apos;New Query&apos;에 붙여넣고 &apos;Run&apos;을 누르세요.</p>
             </div>
           )}
         </div>
