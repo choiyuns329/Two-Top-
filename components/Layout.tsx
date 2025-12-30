@@ -11,8 +11,8 @@ interface LayoutProps {
 
 const Layout: React.FC<LayoutProps> = ({ children, activeView, setView, isCloudConnected }) => {
   const navItems = [
-    { id: ViewMode.DASHBOARD, label: '대시보드', icon: '📊' },
-    { id: ViewMode.STUDENTS, label: '학생 관리', icon: '👥' },
+    { id: ViewMode.DASHBOARD, label: '통계', icon: '📊' },
+    { id: ViewMode.STUDENTS, label: '학생 명단', icon: '👥' },
     { id: ViewMode.EXAMS, label: '시험 및 채점', icon: '📝' },
     { id: ViewMode.ANALYTICS, label: '심층 분석', icon: '💡' },
   ];
@@ -23,10 +23,10 @@ const Layout: React.FC<LayoutProps> = ({ children, activeView, setView, isCloudC
       <aside className="w-full md:w-64 bg-slate-900 text-white flex-shrink-0 flex flex-col shadow-2xl">
         <div className="p-8 border-b border-slate-800">
           <div className="flex items-center space-x-3 mb-1">
-            <div className="w-8 h-8 bg-blue-500 rounded-lg flex items-center justify-center font-black text-white italic">TT</div>
+            <div className="w-8 h-8 bg-blue-500 rounded-lg flex items-center justify-center font-black text-white italic">T</div>
             <h1 className="text-xl font-black tracking-tighter text-white">TwoTop Manager</h1>
           </div>
-          <p className="text-[10px] text-slate-500 font-black uppercase tracking-[0.2em]">Academic Analytics</p>
+          <p className="text-[10px] text-slate-500 font-black uppercase tracking-[0.2em]">Exam Big Data</p>
         </div>
         
         <nav className="p-4 space-y-1 flex-1">
@@ -84,11 +84,11 @@ const Layout: React.FC<LayoutProps> = ({ children, activeView, setView, isCloudC
           </h2>
           <div className="flex items-center space-x-4">
              <div className="text-right hidden sm:block">
-               <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Logged in as</p>
-               <p className="text-sm font-bold text-slate-800">Main Instructor</p>
+               <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">사람을 바꾸는 학원</p>
+               <p className="text-sm font-bold text-slate-800">장현우 투탑영어학원</p>
              </div>
              <div className="w-10 h-10 rounded-xl bg-slate-900 flex items-center justify-center text-white font-black shadow-lg">
-               TT
+               T
              </div>
           </div>
         </header>
