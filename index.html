@@ -13,6 +13,10 @@
             background-color: #f8fafc;
         }
     </style>
+    <!-- 브라우저에서 process.env 참조 에러 방지를 위한 스크립트 -->
+    <script>
+      window.process = { env: { API_KEY: "" } };
+    </script>
 <script type="importmap">
 {
   "imports": {
@@ -27,5 +31,7 @@
 </head>
 <body>
     <div id="root"></div>
+    <!-- 앱의 시작점인 index.tsx를 로드합니다. -->
+    <script type="module" src="./index.tsx"></script>
 </body>
 </html>
