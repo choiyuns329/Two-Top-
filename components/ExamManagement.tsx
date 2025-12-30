@@ -14,16 +14,16 @@ const ExamManagement: React.FC<ExamManagementProps> = ({ students, exams, onAddE
   const [isAdding, setIsAdding] = useState(false);
   const [title, setTitle] = useState('');
   const [maxScore, setMaxScore] = useState(100);
+  const [passThreshold, setPassThreshold] = useState<number | ''>('');
   const [tempScores, setTempScores] = useState<Record<string, number>>({});
   const [selectedExamId, setSelectedExamId] = useState<string | null>(null);
 
   const handleCreateExam = () => {
     if (!title.trim() || students.length === 0) return;
 
-    // Fix: Explicitly cast score to number to resolve TypeScript 'unknown' inference issue in Object.entries mapping
     const scores: ScoreEntry[] = Object.entries(tempScores).map(([studentId, score]) => ({
       studentId,
-      score: score as number
+      score: Number(score)
     }));
 
     const newExam: Exam = {
@@ -31,17 +31,19 @@ const ExamManagement: React.FC<ExamManagementProps> = ({ students, exams, onAddE
       title,
       date: new Date().toISOString(),
       maxScore,
+      passThreshold: passThreshold === '' ? undefined : Number(passThreshold),
       scores
     };
 
     onAddExam(newExam);
     setIsAdding(false);
     setTitle('');
+    setPassThreshold('');
     setTempScores({});
   };
 
   const selectedExam = exams.find(e => e.id === selectedExamId);
-  const results = selectedExam ? calculateExamResults(selectedExam.scores, students) : [];
+  const results = selectedExam ? calculateExamResults(selectedExam.scores, students, selectedExam.passThreshold) : [];
   const summary = getExamSummary(results);
 
   return (
@@ -56,7 +58,7 @@ const ExamManagement: React.FC<ExamManagementProps> = ({ students, exams, onAddE
           <span className="font-bold">새 시험 등록 및 채점</span>
         </button>
 
-        {exams.map((exam) => (
+        {exams.slice().reverse().map((exam) => (
           <div
             key={exam.id}
             onClick={() => setSelectedExamId(exam.id)}
@@ -83,6 +85,7 @@ const ExamManagement: React.FC<ExamManagementProps> = ({ students, exams, onAddE
             <div className="text-sm text-slate-500 space-y-1">
               <p>응시 인원: {exam.scores.length}명</p>
               <p>만점 기준: {exam.maxScore}점</p>
+              <p>통과 기준: {exam.passThreshold ? `${exam.passThreshold}점` : '없음'}</p>
             </div>
           </div>
         ))}
@@ -95,18 +98,18 @@ const ExamManagement: React.FC<ExamManagementProps> = ({ students, exams, onAddE
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
               <div>
                 <h3 className="text-2xl font-bold mb-1">{selectedExam.title} 분석 결과</h3>
-                <p className="text-slate-400">{new Date(selectedExam.date).toLocaleDateString()} 시행</p>
+                <p className="text-slate-400">통과 기준: {selectedExam.passThreshold ? `${selectedExam.passThreshold}점 이상` : '없음'}</p>
               </div>
               <div className="flex gap-4">
-                <div className="bg-slate-800 px-4 py-2 rounded-lg text-center">
+                <div className="bg-slate-800 px-4 py-2 rounded-lg text-center min-w-[80px]">
                   <p className="text-xs text-slate-400">평균</p>
                   <p className="text-xl font-bold text-blue-400">{summary.average.toFixed(1)}</p>
                 </div>
-                <div className="bg-slate-800 px-4 py-2 rounded-lg text-center">
+                <div className="bg-slate-800 px-4 py-2 rounded-lg text-center min-w-[80px]">
                   <p className="text-xs text-slate-400">최고</p>
                   <p className="text-xl font-bold text-green-400">{summary.highestScore}</p>
                 </div>
-                <div className="bg-slate-800 px-4 py-2 rounded-lg text-center">
+                <div className="bg-slate-800 px-4 py-2 rounded-lg text-center min-w-[80px]">
                   <p className="text-xs text-slate-400">최저</p>
                   <p className="text-xl font-bold text-red-400">{summary.lowestScore}</p>
                 </div>
@@ -121,6 +124,7 @@ const ExamManagement: React.FC<ExamManagementProps> = ({ students, exams, onAddE
                   <th className="px-8 py-4">등수</th>
                   <th className="px-8 py-4">이름</th>
                   <th className="px-8 py-4">점수</th>
+                  <th className="px-8 py-4">결과</th>
                   <th className="px-8 py-4">등급</th>
                   <th className="px-8 py-4">백분위</th>
                 </tr>
@@ -139,6 +143,17 @@ const ExamManagement: React.FC<ExamManagementProps> = ({ students, exams, onAddE
                     </td>
                     <td className="px-8 py-4 font-bold text-slate-800">{res.name}</td>
                     <td className="px-8 py-4 font-semibold text-blue-600">{res.score}점</td>
+                    <td className="px-8 py-4">
+                      {res.isPassed !== undefined ? (
+                        <span className={`px-2 py-1 rounded text-xs font-bold ${
+                          res.isPassed ? 'bg-blue-50 text-blue-600 border border-blue-200' : 'bg-red-50 text-red-600 border border-red-200'
+                        }`}>
+                          {res.isPassed ? '통과' : '탈락'}
+                        </span>
+                      ) : (
+                        <span className="text-slate-400 text-xs">-</span>
+                      )}
+                    </td>
                     <td className="px-8 py-4">
                       <span className={`px-3 py-1 rounded-full text-xs font-bold ${
                         res.grade === 1 ? 'bg-green-100 text-green-700' :
@@ -170,14 +185,14 @@ const ExamManagement: React.FC<ExamManagementProps> = ({ students, exams, onAddE
             </div>
             
             <div className="p-6 overflow-y-auto flex-1 space-y-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="md:col-span-1">
                   <label className="block text-sm font-semibold text-slate-700 mb-1">시험 명칭</label>
                   <input
                     type="text"
                     value={title}
                     onChange={(e) => setTitle(e.target.value)}
-                    placeholder="예: 2024년 1학기 중간고사"
+                    placeholder="예: 기말고사"
                     className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
                   />
                 </div>
@@ -187,6 +202,16 @@ const ExamManagement: React.FC<ExamManagementProps> = ({ students, exams, onAddE
                     type="number"
                     value={maxScore}
                     onChange={(e) => setMaxScore(Number(e.target.value))}
+                    className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold text-slate-700 mb-1">통과 기준 (없으면 공백)</label>
+                  <input
+                    type="number"
+                    value={passThreshold}
+                    onChange={(e) => setPassThreshold(e.target.value === '' ? '' : Number(e.target.value))}
+                    placeholder="미설정"
                     className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
                   />
                 </div>
@@ -202,7 +227,7 @@ const ExamManagement: React.FC<ExamManagementProps> = ({ students, exams, onAddE
                         <input
                           type="number"
                           placeholder="0"
-                          value={tempScores[student.id] || ''}
+                          value={tempScores[student.id] ?? ''}
                           onChange={(e) => setTempScores({ ...tempScores, [student.id]: Number(e.target.value) })}
                           className="w-24 px-3 py-1 border border-slate-300 rounded-md text-right focus:ring-2 focus:ring-blue-500 outline-none"
                         />

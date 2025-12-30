@@ -3,6 +3,7 @@ export interface Student {
   id: string;
   name: string;
   school?: string;
+  phone?: string;
   note?: string;
   createdAt: number;
 }
@@ -17,6 +18,7 @@ export interface Exam {
   title: string;
   date: string;
   maxScore: number;
+  passThreshold?: number; // Added: Score required to pass
   scores: ScoreEntry[];
 }
 
@@ -27,6 +29,7 @@ export interface CalculatedResult {
   rank: number;
   percentile: number;
   grade: 1 | 2 | 3 | 4;
+  isPassed?: boolean; // Added: Based on passThreshold
 }
 
 export interface ExamSummary {

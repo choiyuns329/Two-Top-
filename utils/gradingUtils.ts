@@ -3,30 +3,38 @@ import { ScoreEntry, CalculatedResult, ExamSummary, Student } from "../types";
 
 export const calculateExamResults = (
   scores: ScoreEntry[],
-  students: Student[]
+  students: Student[],
+  passThreshold?: number
 ): CalculatedResult[] => {
+  if (scores.length === 0) return [];
+  
   // Sort scores descending
   const sortedScores = [...scores].sort((a, b) => b.score - a.score);
   const total = sortedScores.length;
 
-  return sortedScores.map((entry, index) => {
+  return sortedScores.map((entry) => {
     const student = students.find(s => s.id === entry.studentId);
     
-    // Rank logic (handling ties)
+    // Rank logic (handling ties correctly for percentile)
     const rank = sortedScores.findIndex(s => s.score === entry.score) + 1;
     
     // Percentile: (Rank / Total) * 100
     const percentile = (rank / total) * 100;
 
-    // Grade logic (1-4 grades requested)
-    // 1등급: 상위 25%
-    // 2등급: 25% ~ 50%
-    // 3등급: 50% ~ 75%
-    // 4등급: 하위 25%
+    // Updated Grade logic (CSAT Style requested)
+    // 1등급: 상위 4%
+    // 2등급: 상위 11%
+    // 3등급: 상위 23%
+    // 4등급: 하위 77%
     let grade: 1 | 2 | 3 | 4 = 4;
-    if (percentile <= 25) grade = 1;
-    else if (percentile <= 50) grade = 2;
-    else if (percentile <= 75) grade = 3;
+    if (percentile <= 4) grade = 1;
+    else if (percentile <= 11) grade = 2;
+    else if (percentile <= 23) grade = 3;
+
+    // Pass Threshold logic
+    const isPassed = passThreshold !== undefined && passThreshold !== null 
+      ? entry.score >= passThreshold 
+      : undefined;
 
     return {
       studentId: entry.studentId,
@@ -34,7 +42,8 @@ export const calculateExamResults = (
       score: entry.score,
       rank,
       percentile,
-      grade
+      grade,
+      isPassed
     };
   });
 };
