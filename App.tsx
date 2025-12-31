@@ -1,13 +1,13 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
-import Layout from './components/Layout';
-import Dashboard from './components/Dashboard';
-import StudentManagement from './components/StudentManagement';
-import StudentDetailView from './components/StudentDetailView'; // 추가
-import ExamManagement from './components/ExamManagement';
-import Analytics from './components/Analytics';
-import Settings from './components/Settings';
-import { ViewMode, Student, Exam, SupabaseConfig } from './types';
+import Layout from './components/Layout.tsx';
+import Dashboard from './components/Dashboard.tsx';
+import StudentManagement from './components/StudentManagement.tsx';
+import StudentDetailView from './components/StudentDetailView.tsx';
+import ExamManagement from './components/ExamManagement.tsx';
+import Analytics from './components/Analytics.tsx';
+import Settings from './components/Settings.tsx';
+import { ViewMode, Student, Exam, SupabaseConfig } from './types.ts';
 import { createClient } from '@supabase/supabase-js';
 
 const App: React.FC = () => {
@@ -16,13 +16,11 @@ const App: React.FC = () => {
   const [exams, setExams] = useState<Exam[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // Supabase 설정 로드
   const [sbConfig, setSbConfig] = useState<SupabaseConfig | null>(() => {
     const saved = localStorage.getItem('supabase_config');
     return saved ? JSON.parse(saved) : null;
   });
 
-  // 클라이언트 생성
   const supabase = useMemo(() => {
     if (sbConfig?.url && sbConfig?.anonKey) {
       return createClient(sbConfig.url, sbConfig.anonKey);
@@ -30,7 +28,6 @@ const App: React.FC = () => {
     return null;
   }, [sbConfig]);
 
-  // 초기 데이터 로드 및 실시간 구독
   useEffect(() => {
     const initData = async () => {
       setLoading(true);
@@ -190,7 +187,7 @@ const App: React.FC = () => {
     switch (view) {
       case ViewMode.DASHBOARD: return <Dashboard students={students} exams={exams} />;
       case ViewMode.STUDENTS: return <StudentManagement students={students} exams={exams} onAddStudent={addStudent} onUpdateStudent={updateStudent} onDeleteStudent={deleteStudent} />;
-      case ViewMode.STUDENT_DETAIL: return <StudentDetailView students={students} exams={exams} />; // 추가
+      case ViewMode.STUDENT_DETAIL: return <StudentDetailView students={students} exams={exams} />;
       case ViewMode.EXAMS: return <ExamManagement students={students} exams={exams} onAddExam={addExam} onDeleteExam={deleteExam} />;
       case ViewMode.ANALYTICS: return <Analytics students={students} exams={exams} />;
       case ViewMode.SETTINGS: return (

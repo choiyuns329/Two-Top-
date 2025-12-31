@@ -1,13 +1,12 @@
 
 import { GoogleGenAI, Type } from "@google/genai";
-import { CalculatedResult, ExamSummary } from "../types";
+import { CalculatedResult, ExamSummary } from "../types.ts";
 
 export const getAIInsights = async (
   examTitle: string,
   summary: ExamSummary,
   results: CalculatedResult[]
 ) => {
-  // 매 호출마다 새로운 인스턴스를 생성하여 최신 API 키 사용 보장
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY as string });
   
   const prompt = `
@@ -18,11 +17,10 @@ export const getAIInsights = async (
     - 응시 인원: ${summary.totalStudents}명
     - 평균 점수: ${summary.average.toFixed(2)}점
     - 최고/최저 점수: ${summary.highestScore}점 / ${summary.lowestScore}점
-    - 등급 분포: 1등급(${summary.gradeDistribution[1]}명), 2등급(${summary.gradeDistribution[2]}명), 3등급(${summary.gradeDistribution[3]}명), 4등급(${summary.gradeDistribution[4]}명)
 
     [요구사항]
     1. 전반적인 성취도 평가를 수행하세요.
-    2. 등급별(상위권/중위권/하위권) 맞춤형 학습 조언을 제공하세요.
+    2. 점수대별(상위권/중위권/하위권) 맞춤형 학습 조언을 제공하세요.
     3. 향후 수업 방향과 보강이 필요한 개념을 추천하세요.
     4. 선생님이 학부모 상담 시 활용할 수 있는 핵심 코멘트를 포함하세요.
     
@@ -34,7 +32,6 @@ export const getAIInsights = async (
       model: "gemini-3-pro-preview",
       contents: prompt,
       config: {
-        // 복잡한 분석을 위해 사고 예산 설정 (Gemini 3 Pro)
         thinkingConfig: { thinkingBudget: 16384 }
       }
     });

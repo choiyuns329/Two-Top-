@@ -8,16 +8,21 @@ export interface Student {
   createdAt: number;
 }
 
+export type ExamType = 'RANKING' | 'VOCAB';
+
 export interface ScoreEntry {
   studentId: string;
-  score: number;
+  score: number; // RANKING일 경우 점수, VOCAB일 경우 맞춘 개수
+  wrongQuestions?: number[]; // 틀린 문항 번호 리스트
 }
 
 export interface Exam {
   id: string;
   title: string;
   date: string;
-  maxScore: number;
+  type: ExamType;
+  maxScore: number; // RANKING일 경우 만점, VOCAB일 경우 전체 문항 수
+  totalQuestions: number;
   targetSchools?: string[];
   passThreshold?: number; 
   scores: ScoreEntry[];
@@ -29,8 +34,8 @@ export interface CalculatedResult {
   score: number;
   rank: number;
   percentile: number;
-  grade: 1 | 2 | 3 | 4;
   isPassed?: boolean;
+  wrongQuestions?: number[];
 }
 
 export interface ExamSummary {
@@ -38,18 +43,13 @@ export interface ExamSummary {
   totalStudents: number;
   highestScore: number;
   lowestScore: number;
-  gradeDistribution: {
-    1: number;
-    2: number;
-    3: number;
-    4: number;
-  };
+  questionStats?: Record<number, number>; // 문항별 틀린 학생 수
 }
 
 export enum ViewMode {
   DASHBOARD = 'DASHBOARD',
   STUDENTS = 'STUDENTS',
-  STUDENT_DETAIL = 'STUDENT_DETAIL', // 추가: 학생 개별 관리
+  STUDENT_DETAIL = 'STUDENT_DETAIL',
   EXAMS = 'EXAMS',
   ANALYTICS = 'ANALYTICS',
   SETTINGS = 'SETTINGS'
