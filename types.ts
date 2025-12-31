@@ -23,6 +23,7 @@ export interface Exam {
   type: ExamType;
   maxScore: number; // RANKING일 경우 만점, VOCAB일 경우 전체 문항 수
   totalQuestions: number;
+  questionPoints?: number[]; // 문항별 배점 (RANKING 전용)
   targetSchools?: string[];
   passThreshold?: number; 
   scores: ScoreEntry[];

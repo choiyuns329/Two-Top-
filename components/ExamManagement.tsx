@@ -1,5 +1,5 @@
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { Student, Exam, ScoreEntry, ExamType } from '../types.ts';
 import { calculateExamResults, getExamSummary, getSchoolBreakdown } from '../utils/gradingUtils.ts';
 
@@ -16,11 +16,22 @@ const ExamManagement: React.FC<ExamManagementProps> = ({ students, exams, onAddE
   const [title, setTitle] = useState('');
   const [totalQuestions, setTotalQuestions] = useState(20);
   const [maxScore, setMaxScore] = useState(100);
+  const [questionPoints, setQuestionPoints] = useState<number[]>([]);
   const [selectedSchools, setSelectedSchools] = useState<string[]>([]);
   const [passThreshold, setPassThreshold] = useState<number | ''>('');
   
   const [tempScores, setTempScores] = useState<Record<string, { score: number, wrong: string }>>({});
   const [selectedExamId, setSelectedExamId] = useState<string | null>(null);
+
+  // 문항 수 변경 시 배점 배열 초기화 (기본값은 균등 배점)
+  useEffect(() => {
+    const defaultPoint = examType === 'RANKING' ? Math.floor(100 / totalQuestions) : 1;
+    const newPoints = Array(totalQuestions).fill(defaultPoint);
+    setQuestionPoints(newPoints);
+    if (examType === 'RANKING') {
+      setMaxScore(newPoints.reduce((a, b) => a + b, 0));
+    }
+  }, [totalQuestions, examType]);
 
   const allAvailableSchools = useMemo(() => {
     const schools = students.map(s => s.school?.trim()).filter((s): s is string => !!s);
@@ -51,6 +62,7 @@ const ExamManagement: React.FC<ExamManagementProps> = ({ students, exams, onAddE
       date: new Date().toISOString(),
       type: examType,
       totalQuestions,
+      questionPoints: examType === 'RANKING' ? questionPoints : undefined,
       maxScore: examType === 'RANKING' ? maxScore : totalQuestions,
       targetSchools: selectedSchools.length > 0 ? selectedSchools : undefined,
       passThreshold: passThreshold === '' ? undefined : Number(passThreshold),
@@ -65,20 +77,60 @@ const ExamManagement: React.FC<ExamManagementProps> = ({ students, exams, onAddE
     setSelectedSchools([]);
   };
 
+  const updateQuestionPoint = (index: number, val: number) => {
+    const updated = [...questionPoints];
+    updated[index] = val;
+    setQuestionPoints(updated);
+    const newMax = updated.reduce((a, b) => a + b, 0);
+    setMaxScore(newMax);
+
+    // 배점이 바뀌면 기존 입력된 학생들의 점수도 재계산
+    setTempScores(prev => {
+      const next = { ...prev };
+      Object.keys(next).forEach(studentId => {
+        const wrongText = next[studentId].wrong;
+        const wrongNums = wrongText.split(',').map(n => parseInt(n.trim())).filter(n => !isNaN(n));
+        
+        if (examType === 'RANKING') {
+          let deduction = 0;
+          wrongNums.forEach(num => {
+            if (num >= 1 && num <= totalQuestions) {
+              deduction += updated[num - 1];
+            }
+          });
+          next[studentId].score = newMax - deduction;
+        }
+      });
+      return next;
+    });
+  };
+
   const updateStudentScore = (id: string, field: 'score' | 'wrong', value: string) => {
     setTempScores(prev => {
-      const current = prev[id] || { score: 0, wrong: '' };
+      const current = prev[id] || { score: examType === 'RANKING' ? maxScore : totalQuestions, wrong: '' };
       let newScore = current.score;
       let newWrong = current.wrong;
 
-      if (field === 'score') {
-        newScore = Number(value);
-      } else {
+      if (field === 'wrong') {
         newWrong = value;
-        if (examType === 'VOCAB') {
-          const wrongCount = value.split(',').map(n => n.trim()).filter(n => n !== '').length;
-          newScore = Math.max(0, totalQuestions - wrongCount);
+        const wrongNums = value.split(',').map(n => parseInt(n.trim())).filter(n => !isNaN(n));
+        
+        if (examType === 'RANKING') {
+          // 점수 평가: 배점 차감 방식
+          let deduction = 0;
+          wrongNums.forEach(num => {
+            if (num >= 1 && num <= totalQuestions) {
+              deduction += questionPoints[num - 1] || 0;
+            }
+          });
+          newScore = maxScore - deduction;
+        } else {
+          // 개수 평가: 기존 방식 (전체 - 틀린 개수)
+          newScore = Math.max(0, totalQuestions - wrongNums.length);
         }
+      } else if (field === 'score') {
+        // 수동 점수 수정 허용 (필요한 경우)
+        newScore = Number(value);
       }
 
       return { ...prev, [id]: { score: newScore, wrong: newWrong } };
@@ -257,7 +309,7 @@ const ExamManagement: React.FC<ExamManagementProps> = ({ students, exams, onAddE
               <button onClick={() => setIsAdding(false)} className="w-10 h-10 rounded-full bg-white shadow-sm flex items-center justify-center text-slate-400 hover:text-slate-600">✕</button>
             </div>
             
-            <div className="p-8 overflow-y-auto flex-1 space-y-8">
+            <div className="p-8 overflow-y-auto flex-1 space-y-8 custom-scrollbar">
               {/* Type Selection - BLACK THEME */}
               <div className="space-y-6">
                 <div className="grid grid-cols-2 gap-4">
@@ -316,10 +368,36 @@ const ExamManagement: React.FC<ExamManagementProps> = ({ students, exams, onAddE
                     <input type="number" value={totalQuestions} onChange={(e) => setTotalQuestions(Number(e.target.value))} className="w-full px-5 py-4 bg-slate-50 rounded-2xl border-none focus:ring-4 focus:ring-slate-100 outline-none font-bold text-slate-900" />
                   </div>
                   <div>
-                    <label className="block text-[10px] font-black text-slate-400 uppercase mb-2 tracking-widest">{examType === 'RANKING' ? '만점 기준' : '통과 기준 (개)'}</label>
-                    <input type="number" value={examType === 'RANKING' ? maxScore : passThreshold} onChange={(e) => examType === 'RANKING' ? setMaxScore(Number(e.target.value)) : setPassThreshold(Number(e.target.value))} className="w-full px-5 py-4 bg-slate-50 rounded-2xl border-none focus:ring-4 focus:ring-slate-100 outline-none font-bold text-slate-900" />
+                    <label className="block text-[10px] font-black text-slate-400 uppercase mb-2 tracking-widest">{examType === 'RANKING' ? '총점 (자동계산)' : '통과 기준 (개)'}</label>
+                    <input 
+                      type="number" 
+                      value={examType === 'RANKING' ? maxScore : passThreshold} 
+                      onChange={(e) => examType === 'RANKING' ? null : setPassThreshold(Number(e.target.value))} 
+                      readOnly={examType === 'RANKING'}
+                      className={`w-full px-5 py-4 bg-slate-50 rounded-2xl border-none focus:ring-4 focus:ring-slate-100 outline-none font-bold text-slate-900 ${examType === 'RANKING' ? 'opacity-70' : ''}`} 
+                    />
                   </div>
                 </div>
+
+                {/* Point Setting for RANKING */}
+                {examType === 'RANKING' && (
+                  <div className="p-6 bg-slate-900 rounded-[2rem] text-white">
+                    <label className="block text-[10px] font-black text-white/50 uppercase mb-4 tracking-widest">문항별 배점 설정 (총점: {maxScore}점)</label>
+                    <div className="grid grid-cols-5 sm:grid-cols-10 gap-2">
+                      {questionPoints.map((point, idx) => (
+                        <div key={idx} className="flex flex-col items-center gap-1">
+                          <span className="text-[9px] font-black text-white/30">{idx + 1}</span>
+                          <input 
+                            type="number" 
+                            value={point} 
+                            onChange={(e) => updateQuestionPoint(idx, Number(e.target.value))}
+                            className="w-full bg-white/10 border-none rounded-lg p-1 text-center text-xs font-black outline-none focus:bg-white/20 transition-all"
+                          />
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* Student Entry */}
@@ -337,10 +415,21 @@ const ExamManagement: React.FC<ExamManagementProps> = ({ students, exams, onAddE
                       </div>
                       <div className="flex items-center gap-3">
                         <div className="flex-1">
-                          <input type="text" placeholder="틀린 번호 (1,3,15)" value={tempScores[student.id]?.wrong || ''} onChange={(e) => updateStudentScore(student.id, 'wrong', e.target.value)} className="w-full px-4 py-2 bg-white rounded-xl border border-slate-100 text-xs font-bold text-red-500 outline-none" />
+                          <label className="block text-[8px] font-black text-slate-400 uppercase mb-1">틀린 번호 (콤마로 구분)</label>
+                          <input 
+                            type="text" 
+                            placeholder="예: 1, 4, 12" 
+                            value={tempScores[student.id]?.wrong || ''} 
+                            onChange={(e) => updateStudentScore(student.id, 'wrong', e.target.value)} 
+                            className="w-full px-4 py-2 bg-white rounded-xl border border-slate-100 text-xs font-bold text-red-500 outline-none focus:ring-2 focus:ring-red-100 transition-all" 
+                          />
                         </div>
                         <div className="w-24 text-right">
-                          <input type="number" value={tempScores[student.id]?.score ?? ''} onChange={(e) => updateStudentScore(student.id, 'score', e.target.value)} className="w-full px-3 py-2 bg-white rounded-xl border border-slate-100 text-right font-black text-slate-900 outline-none" />
+                          <label className="block text-[8px] font-black text-slate-400 uppercase mb-1">계산된 성적</label>
+                          <div className="w-full px-3 py-2 bg-white rounded-xl border border-slate-100 text-right font-black text-slate-900">
+                             {tempScores[student.id]?.score ?? (examType === 'RANKING' ? maxScore : totalQuestions)}
+                             <span className="text-[10px] ml-1 opacity-50">{unit}</span>
+                          </div>
                         </div>
                       </div>
                     </div>
