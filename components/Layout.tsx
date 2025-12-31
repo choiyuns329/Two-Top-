@@ -11,7 +11,7 @@ interface LayoutProps {
 
 const Layout: React.FC<LayoutProps> = ({ children, activeView, setView, isCloudConnected }) => {
   const navItems = [
-    { id: ViewMode.DASHBOARD, label: '통', icon: '📊' },
+    { id: ViewMode.DASHBOARD, label: '통계', icon: '📊' },
     { id: ViewMode.STUDENTS, label: '학생 명단', icon: '👥' },
     { id: ViewMode.STUDENT_DETAIL, label: '학생 개별 관리', icon: '👤' }, // 추가
     { id: ViewMode.EXAMS, label: '시험 및 채점', icon: '📝' },
