@@ -35,22 +35,21 @@ CREATE TABLE IF NOT EXISTS students (
   "createdAt" BIGINT
 );
 
--- 2. 시험 테이블 생성
+-- 2. 시험 테이블 생성 (targetSchools 필드 추가)
 CREATE TABLE IF NOT EXISTS exams (
   id TEXT PRIMARY KEY,
   title TEXT NOT NULL,
   date TEXT NOT NULL,
   "maxScore" INTEGER NOT NULL,
   "passThreshold" INTEGER,
+  "targetSchools" JSONB,
   scores JSONB NOT NULL
 );
 
 -- 3. 실시간 동기화 활성화
--- (이미 활성화 되어있다면 에러가 날 수 있으나 무시해도 됩니다)
 ALTER PUBLICATION supabase_realtime ADD TABLE students, exams;
 
--- 4. 보안 정책(RLS) 설정: 누구나 데이터를 쓰고 읽을 수 있게 허용
--- (RLS 에러가 날 때 이 부분을 다시 실행하세요)
+-- 4. 보안 정책(RLS) 설정
 ALTER TABLE students ENABLE ROW LEVEL SECURITY;
 ALTER TABLE exams ENABLE ROW LEVEL SECURITY;
 
@@ -120,7 +119,7 @@ CREATE POLICY "Enable access for all" ON exams FOR ALL USING (true) WITH CHECK (
                 </button>
                 <pre className="overflow-x-auto">{sqlCode}</pre>
               </div>
-              <p className="text-[11px] text-slate-400 mt-2 italic">* Supabase 왼쪽 메뉴의 &apos;SQL Editor&apos; &rarr; &apos;New Query&apos;에 붙여넣고 &apos;Run&apos;을 누르세요. (RLS 에러 해결 포함)</p>
+              <p className="text-[11px] text-slate-400 mt-2 italic">* Supabase 왼쪽 메뉴의 &apos;SQL Editor&apos; &rarr; &apos;New Query&apos;에 붙여넣고 &apos;Run&apos;을 누르세요.</p>
             </div>
           )}
         </div>

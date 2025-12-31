@@ -3,6 +3,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import Layout from './components/Layout';
 import Dashboard from './components/Dashboard';
 import StudentManagement from './components/StudentManagement';
+import StudentDetailView from './components/StudentDetailView'; // 추가
 import ExamManagement from './components/ExamManagement';
 import Analytics from './components/Analytics';
 import Settings from './components/Settings';
@@ -62,12 +63,10 @@ const App: React.FC = () => {
 
     initData();
 
-    // 실시간 동기화 (서버에서 다른 기기가 변경했을 때 반영용)
     if (supabase) {
       const channel = supabase
         .channel('db-changes')
         .on('postgres_changes', { event: '*', schema: 'public', table: 'students' }, (payload) => {
-          // 중복 업데이트 방지를 위해 간단한 처리만 수행
           if (payload.eventType === 'INSERT') {
             setStudents(prev => {
               if (prev.find(s => s.id === payload.new.id)) return prev;
@@ -91,7 +90,6 @@ const App: React.FC = () => {
     }
   }, [supabase]);
 
-  // 데이터 변경 감지 시 로컬 백업 (클라우드 미연결 시)
   useEffect(() => {
     if (!supabase && !loading) {
       localStorage.setItem('students', JSON.stringify(students));
@@ -99,7 +97,6 @@ const App: React.FC = () => {
     }
   }, [students, exams, loading, supabase]);
 
-  // 데이터 조작 함수들
   const addStudent = async (name: string, school: string, phone: string) => {
     const newStudent: Student = {
       id: Math.random().toString(36).substr(2, 9),
@@ -113,11 +110,10 @@ const App: React.FC = () => {
       const { error } = await supabase.from('students').insert([newStudent]);
       if (error) {
         console.error("Insert error:", error);
-        alert(`학생 등록 실패: ${error.message}\nSupabase 테이블이 올바르게 생성되었는지 확인하세요.`);
+        alert(`학생 등록 실패: ${error.message}`);
         return;
       }
     }
-    // 성공 시 또는 로컬 모드일 때 상태 업데이트
     setStudents(prev => [...prev, newStudent]);
   };
 
@@ -133,7 +129,7 @@ const App: React.FC = () => {
   };
 
   const deleteStudent = async (id: string) => {
-    if (window.confirm('정말 삭제하시겠습니까? 클라우드 연결 시 모든 기기에서 삭제됩니다.')) {
+    if (window.confirm('정말 삭제하시겠습니까?')) {
       if (supabase) {
         const { error } = await supabase.from('students').delete().eq('id', id);
         if (error) {
@@ -194,6 +190,7 @@ const App: React.FC = () => {
     switch (view) {
       case ViewMode.DASHBOARD: return <Dashboard students={students} exams={exams} />;
       case ViewMode.STUDENTS: return <StudentManagement students={students} exams={exams} onAddStudent={addStudent} onUpdateStudent={updateStudent} onDeleteStudent={deleteStudent} />;
+      case ViewMode.STUDENT_DETAIL: return <StudentDetailView students={students} exams={exams} />; // 추가
       case ViewMode.EXAMS: return <ExamManagement students={students} exams={exams} onAddExam={addExam} onDeleteExam={deleteExam} />;
       case ViewMode.ANALYTICS: return <Analytics students={students} exams={exams} />;
       case ViewMode.SETTINGS: return (

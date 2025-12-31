@@ -18,6 +18,7 @@ export interface Exam {
   title: string;
   date: string;
   maxScore: number;
+  targetSchools?: string[];
   passThreshold?: number; 
   scores: ScoreEntry[];
 }
@@ -48,6 +49,7 @@ export interface ExamSummary {
 export enum ViewMode {
   DASHBOARD = 'DASHBOARD',
   STUDENTS = 'STUDENTS',
+  STUDENT_DETAIL = 'STUDENT_DETAIL', // 추가: 학생 개별 관리
   EXAMS = 'EXAMS',
   ANALYTICS = 'ANALYTICS',
   SETTINGS = 'SETTINGS'
