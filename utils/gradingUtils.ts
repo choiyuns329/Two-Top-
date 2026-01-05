@@ -8,6 +8,7 @@ export interface SchoolStat {
   studentCount: number;
 }
 
+// Fixed type signature and internal logic to use CalculatedResult with school
 export const calculateExamResults = (
   exam: Exam,
   students: Student[]
@@ -80,11 +81,12 @@ export const getExamSummary = (results: CalculatedResult[], totalQuestions: numb
   };
 };
 
-export const getSchoolBreakdown = (results: (CalculatedResult & { schoolRank?: number })[]): SchoolStat[] => {
+// Removed 'as any' casting as CalculatedResult now includes 'school'
+export const getSchoolBreakdown = (results: CalculatedResult[]): SchoolStat[] => {
   const schoolGroups: Record<string, number[]> = {};
   
   results.forEach(res => {
-    const school = (res as any).school || "기타";
+    const school = res.school;
     if (!schoolGroups[school]) schoolGroups[school] = [];
     schoolGroups[school].push(res.score);
   });

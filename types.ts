@@ -32,6 +32,7 @@ export interface Exam {
 export interface CalculatedResult {
   studentId: string;
   name: string;
+  school: string;
   score: number;
   rank: number;
   percentile: number;

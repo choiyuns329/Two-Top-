@@ -72,9 +72,14 @@ const App: React.FC = () => {
           }
         })
         .on('postgres_changes', { event: '*', schema: 'public', table: 'exams' }, (payload) => {
-          if (payload.eventType === 'INSERT') {
+          if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
             setExams(prev => {
-              if (prev.find(e => e.id === payload.new.id)) return prev;
+              const existingIndex = prev.findIndex(e => e.id === payload.new.id);
+              if (existingIndex > -1) {
+                const next = [...prev];
+                next[existingIndex] = payload.new as Exam;
+                return next;
+              }
               return [...prev, payload.new as Exam];
             });
           }
@@ -149,6 +154,17 @@ const App: React.FC = () => {
     setExams(prev => [...prev, exam]);
   };
 
+  const updateExam = async (updatedExam: Exam) => {
+    if (supabase) {
+      const { error } = await supabase.from('exams').update(updatedExam).eq('id', updatedExam.id);
+      if (error) {
+        alert("시험 수정 실패: " + error.message);
+        return;
+      }
+    }
+    setExams(prev => prev.map(e => e.id === updatedExam.id ? updatedExam : e));
+  };
+
   const deleteExam = async (id: string) => {
     if (window.confirm('시험 기록을 삭제하시겠습니까?')) {
       if (supabase) {
@@ -188,7 +204,7 @@ const App: React.FC = () => {
       case ViewMode.DASHBOARD: return <Dashboard students={students} exams={exams} />;
       case ViewMode.STUDENTS: return <StudentManagement students={students} exams={exams} onAddStudent={addStudent} onUpdateStudent={updateStudent} onDeleteStudent={deleteStudent} />;
       case ViewMode.STUDENT_DETAIL: return <StudentDetailView students={students} exams={exams} />;
-      case ViewMode.EXAMS: return <ExamManagement students={students} exams={exams} onAddExam={addExam} onDeleteExam={deleteExam} />;
+      case ViewMode.EXAMS: return <ExamManagement students={students} exams={exams} onAddExam={addExam} onUpdateExam={updateExam} onDeleteExam={deleteExam} />;
       case ViewMode.ANALYTICS: return <Analytics students={students} exams={exams} />;
       case ViewMode.SETTINGS: return (
         <Settings 
