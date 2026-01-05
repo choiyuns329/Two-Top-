@@ -8,11 +8,11 @@ export interface Student {
   createdAt: number;
 }
 
-export type ExamType = 'RANKING' | 'VOCAB';
+export type ExamType = 'RANKING' | 'VOCAB' | 'WORD_TEST';
 
 export interface ScoreEntry {
   studentId: string;
-  score: number; // RANKING일 경우 점수, VOCAB일 경우 맞춘 개수
+  score: number; // RANKING일 경우 점수, VOCAB/WORD_TEST일 경우 맞춘 개수
   wrongQuestions?: number[]; // 틀린 문항 번호 리스트
 }
 
@@ -21,7 +21,7 @@ export interface Exam {
   title: string;
   date: string;
   type: ExamType;
-  maxScore: number; // RANKING일 경우 만점, VOCAB일 경우 전체 문항 수
+  maxScore: number; // RANKING일 경우 만점, VOCAB/WORD_TEST일 경우 전체 문항 수
   totalQuestions: number;
   questionPoints?: number[]; // 문항별 배점 (RANKING 전용)
   targetSchools?: string[];

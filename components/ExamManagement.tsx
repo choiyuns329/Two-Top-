@@ -27,13 +27,14 @@ const ExamManagement: React.FC<ExamManagementProps> = ({ students, exams, onAddE
   const [tempScores, setTempScores] = useState<Record<string, { score: number, rawInput: string }>>({});
   const [selectedExamId, setSelectedExamId] = useState<string | null>(null);
 
-  // 문항 수 변경 시 배점 배열 초기화
   useEffect(() => {
     const defaultPoint = examType === 'RANKING' ? Math.floor(100 / totalQuestions) : 1;
     const newPoints = Array(totalQuestions).fill(defaultPoint);
     setQuestionPoints(newPoints);
     if (examType === 'RANKING') {
       setMaxScore(newPoints.reduce((a, b) => a + b, 0));
+    } else {
+      setMaxScore(totalQuestions);
     }
   }, [totalQuestions, examType]);
 
@@ -54,8 +55,17 @@ const ExamManagement: React.FC<ExamManagementProps> = ({ students, exams, onAddE
       .filter(s => tempScores[s.id] !== undefined)
       .map((s) => {
         const rawInput = tempScores[s.id].rawInput;
-        const inputNums = rawInput.split(',').map(n => parseInt(n.trim())).filter(n => !isNaN(n));
         
+        // 단어 시험은 번호 분석 없이 입력된 숫자 자체가 점수(맞은 개수)임
+        if (examType === 'WORD_TEST') {
+          return {
+            studentId: s.id,
+            score: tempScores[s.id].score,
+            wrongQuestions: []
+          };
+        }
+
+        const inputNums = rawInput.split(',').map(n => parseInt(n.trim())).filter(n => !isNaN(n));
         let finalWrongQuestions: number[] = [];
         if (inputMode === 'WRONG') {
           finalWrongQuestions = inputNums;
@@ -99,6 +109,12 @@ const ExamManagement: React.FC<ExamManagementProps> = ({ students, exams, onAddE
   };
 
   const calculateScoreFromInput = (input: string, points: number[], currentMax: number) => {
+    // 단어 시험일 경우 입력값을 숫자로 바로 변환
+    if (examType === 'WORD_TEST') {
+      const val = parseInt(input) || 0;
+      return { score: Math.min(totalQuestions, val), nums: [] };
+    }
+
     const nums = input.split(',').map(n => parseInt(n.trim())).filter(n => !isNaN(n));
     let score = 0;
 
@@ -117,6 +133,7 @@ const ExamManagement: React.FC<ExamManagementProps> = ({ students, exams, onAddE
         score = sum;
       }
     } else {
+      // VOCAB
       if (inputMode === 'WRONG') {
         score = Math.max(0, totalQuestions - nums.length);
       } else {
@@ -133,7 +150,6 @@ const ExamManagement: React.FC<ExamManagementProps> = ({ students, exams, onAddE
     });
   };
 
-  // Add missing updateQuestionPoint function to fix "Cannot find name 'updateQuestionPoint'"
   const updateQuestionPoint = (idx: number, val: number) => {
     const nextPoints = [...questionPoints];
     nextPoints[idx] = val;
@@ -143,7 +159,6 @@ const ExamManagement: React.FC<ExamManagementProps> = ({ students, exams, onAddE
     }
   };
 
-  // Ensure scores are updated when points or mode change by adding dependencies
   useEffect(() => {
     setTempScores(prev => {
       const next = { ...prev };
@@ -153,7 +168,7 @@ const ExamManagement: React.FC<ExamManagementProps> = ({ students, exams, onAddE
       });
       return next;
     });
-  }, [inputMode, questionPoints, maxScore]);
+  }, [inputMode, questionPoints, maxScore, examType]);
 
   const toggleSchool = (school: string) => {
     setSelectedSchools(prev => 
@@ -166,6 +181,24 @@ const ExamManagement: React.FC<ExamManagementProps> = ({ students, exams, onAddE
   const summary = selectedExam ? getExamSummary(results, selectedExam.totalQuestions) : null;
   const schoolStats = selectedExam ? getSchoolBreakdown(results) : [];
   const unit = selectedExam?.type === 'RANKING' ? '점' : '개';
+
+  const getExamTypeLabel = (type: ExamType) => {
+    switch (type) {
+      case 'RANKING': return '점수 평가';
+      case 'VOCAB': return '개수 평가';
+      case 'WORD_TEST': return '단어 시험';
+      default: return '평가';
+    }
+  };
+
+  const getExamTypeColor = (type: ExamType) => {
+    switch (type) {
+      case 'RANKING': return 'bg-slate-900 text-white';
+      case 'VOCAB': return 'bg-slate-200 text-slate-700';
+      case 'WORD_TEST': return 'bg-blue-600 text-white';
+      default: return 'bg-slate-100 text-slate-500';
+    }
+  };
 
   return (
     <div className="space-y-8">
@@ -186,14 +219,12 @@ const ExamManagement: React.FC<ExamManagementProps> = ({ students, exams, onAddE
             key={exam.id}
             onClick={() => setSelectedExamId(exam.id)}
             className={`cursor-pointer p-6 rounded-2xl border transition-all ${
-              selectedExamId === exam.id ? 'border-slate-900 ring-4 ring-slate-100 bg-white' : 'border-slate-200 bg-white hover:border-slate-400 shadow-sm'
+              selectedExamId === exam.id ? 'border-slate-900 ring-4 ring-slate-100 bg-white shadow-xl' : 'border-slate-200 bg-white hover:border-slate-400 shadow-sm'
             }`}
           >
             <div className="flex justify-between items-start mb-3">
-              <span className={`px-2 py-1 rounded-lg text-[10px] font-black uppercase ${
-                exam.type === 'RANKING' ? 'bg-slate-900 text-white' : 'bg-slate-200 text-slate-700'
-              }`}>
-                {exam.type === 'RANKING' ? '점수 평가' : '개수 평가'}
+              <span className={`px-2 py-1 rounded-lg text-[10px] font-black uppercase ${getExamTypeColor(exam.type)}`}>
+                {getExamTypeLabel(exam.type)}
               </span>
               <button onClick={(e) => { e.stopPropagation(); onDeleteExam(exam.id); }} className="text-slate-300 hover:text-red-500">✕</button>
             </div>
@@ -216,18 +247,18 @@ const ExamManagement: React.FC<ExamManagementProps> = ({ students, exams, onAddE
       {selectedExam && summary && (
         <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4">
           <div className="bg-white rounded-3xl border border-slate-200 shadow-xl overflow-hidden">
-            <div className="bg-slate-900 p-8 text-white">
+            <div className={`${getExamTypeColor(selectedExam.type)} p-8`}>
               <div className="flex justify-between items-end">
                 <div>
                   <div className="flex items-center gap-2 mb-2">
                      <span className="px-2 py-0.5 bg-white/20 rounded text-[10px] font-black tracking-widest uppercase">
-                       {selectedExam.type === 'RANKING' ? 'Score Based' : 'Count Based'}
+                       {getExamTypeLabel(selectedExam.type)}
                      </span>
                   </div>
                   <h3 className="text-2xl font-black">{selectedExam.title}</h3>
                 </div>
                 <div className="text-right">
-                  <p className="text-sm font-bold text-white/50">Total Average</p>
+                  <p className="text-sm font-bold opacity-70">Total Average</p>
                   <p className="text-3xl font-black">{summary.average.toFixed(1)}<span className="text-lg ml-1 opacity-70">{unit}</span></p>
                 </div>
               </div>
@@ -285,7 +316,7 @@ const ExamManagement: React.FC<ExamManagementProps> = ({ students, exams, onAddE
                       <td className="px-8 py-4">
                         <div className="flex flex-col">
                           <span className="font-black text-slate-900 text-lg">{res.score}{unit}</span>
-                          {selectedExam.passThreshold !== undefined && selectedExam.type === 'VOCAB' && (
+                          {selectedExam.passThreshold !== undefined && (selectedExam.type === 'VOCAB' || selectedExam.type === 'WORD_TEST') && (
                             <span className={`text-[10px] font-black uppercase ${res.isPassed ? 'text-green-500' : 'text-red-500'}`}>
                               {res.isPassed ? 'PASS' : 'FAIL'}
                             </span>
@@ -317,25 +348,29 @@ const ExamManagement: React.FC<ExamManagementProps> = ({ students, exams, onAddE
       {/* Add Exam Modal */}
       {isAdding && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white w-full max-w-3xl rounded-[2.5rem] shadow-2xl overflow-hidden max-h-[90vh] flex flex-col animate-in zoom-in duration-200">
+          <div className="bg-white w-full max-w-4xl rounded-[2.5rem] shadow-2xl overflow-hidden max-h-[90vh] flex flex-col animate-in zoom-in duration-200">
             <div className="p-8 border-b border-slate-100 bg-slate-50 flex justify-between items-center">
               <div>
                 <h3 className="text-2xl font-black text-slate-800">새 시험 등록</h3>
-                <p className="text-sm text-slate-500 font-medium">유형을 선택하고 응시 학교를 지정하세요.</p>
+                <p className="text-sm text-slate-500 font-medium">시험 유형에 맞는 필수 정보를 입력해주세요.</p>
               </div>
               <button onClick={() => setIsAdding(false)} className="w-10 h-10 rounded-full bg-white shadow-sm flex items-center justify-center text-slate-400 hover:text-slate-600">✕</button>
             </div>
             
             <div className="p-8 overflow-y-auto flex-1 space-y-8 custom-scrollbar">
               <div className="space-y-6">
-                <div className="grid grid-cols-2 gap-4">
-                  <button onClick={() => setExamType('RANKING')} className={`p-6 rounded-[2rem] border-2 transition-all flex flex-col items-center gap-2 ${examType === 'RANKING' ? 'border-slate-900 bg-slate-900 text-white shadow-2xl scale-105' : 'border-slate-100 bg-white text-slate-400 hover:border-slate-300'}`}>
-                    <span className="text-2xl">🏆</span>
-                    <span className="font-black text-sm uppercase tracking-widest">점수 평가</span>
+                <div className="grid grid-cols-3 gap-4">
+                  <button onClick={() => setExamType('RANKING')} className={`p-4 rounded-[1.5rem] border-2 transition-all flex flex-col items-center gap-2 ${examType === 'RANKING' ? 'border-slate-900 bg-slate-900 text-white shadow-lg scale-105' : 'border-slate-100 bg-white text-slate-400 hover:border-slate-300'}`}>
+                    <span className="text-xl">🏆</span>
+                    <span className="font-black text-[10px] uppercase tracking-widest">점수 평가</span>
                   </button>
-                  <button onClick={() => setExamType('VOCAB')} className={`p-6 rounded-[2rem] border-2 transition-all flex flex-col items-center gap-2 ${examType === 'VOCAB' ? 'border-slate-900 bg-slate-900 text-white shadow-2xl scale-105' : 'border-slate-100 bg-white text-slate-400 hover:border-slate-300'}`}>
-                    <span className="text-2xl">📖</span>
-                    <span className="font-black text-sm uppercase tracking-widest">개수 평가</span>
+                  <button onClick={() => setExamType('VOCAB')} className={`p-4 rounded-[1.5rem] border-2 transition-all flex flex-col items-center gap-2 ${examType === 'VOCAB' ? 'border-slate-900 bg-slate-900 text-white shadow-lg scale-105' : 'border-slate-100 bg-white text-slate-400 hover:border-slate-300'}`}>
+                    <span className="text-xl">📊</span>
+                    <span className="font-black text-[10px] uppercase tracking-widest">개수 평가</span>
+                  </button>
+                  <button onClick={() => setExamType('WORD_TEST')} className={`p-4 rounded-[1.5rem] border-2 transition-all flex flex-col items-center gap-2 ${examType === 'WORD_TEST' ? 'border-blue-600 bg-blue-600 text-white shadow-lg scale-105' : 'border-slate-100 bg-white text-slate-400 hover:border-slate-300'}`}>
+                    <span className="text-xl">🔡</span>
+                    <span className="font-black text-[10px] uppercase tracking-widest">단어 시험</span>
                   </button>
                 </div>
 
@@ -354,7 +389,7 @@ const ExamManagement: React.FC<ExamManagementProps> = ({ students, exams, onAddE
               <div className="space-y-6">
                 <div>
                   <label className="block text-[10px] font-black text-slate-400 uppercase mb-2 tracking-widest">시험 제목</label>
-                  <input type="text" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="예: 5월 덕소고 내신대비 테스트" className="w-full px-5 py-4 bg-slate-50 rounded-2xl border-none focus:ring-4 focus:ring-slate-100 outline-none font-bold text-slate-900" />
+                  <input type="text" value={title} onChange={(e) => setTitle(e.target.value)} placeholder={examType === 'WORD_TEST' ? "예: 능률보카 DAY 1-5 테스트" : "시험 제목 입력"} className="w-full px-5 py-4 bg-slate-50 rounded-2xl border-none focus:ring-4 focus:ring-slate-100 outline-none font-bold text-slate-900" />
                 </div>
 
                 <div className="grid grid-cols-2 gap-4">
@@ -367,7 +402,7 @@ const ExamManagement: React.FC<ExamManagementProps> = ({ students, exams, onAddE
                       <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest">
                         {examType === 'RANKING' ? '총점 (자동계산)' : '통과 기준 (개)' }
                       </label>
-                      {examType === 'VOCAB' && (
+                      {(examType === 'VOCAB' || examType === 'WORD_TEST') && (
                         <label className="flex items-center gap-2 cursor-pointer">
                           <input type="checkbox" checked={noPassThreshold} onChange={(e) => setNoPassThreshold(e.target.checked)} className="w-3 h-3 rounded" />
                           <span className="text-[10px] font-black text-slate-400 uppercase">기준 없음</span>
@@ -378,7 +413,7 @@ const ExamManagement: React.FC<ExamManagementProps> = ({ students, exams, onAddE
                       type="number" 
                       value={examType === 'RANKING' ? maxScore : passThreshold} 
                       onChange={(e) => setPassThreshold(Number(e.target.value))} 
-                      readOnly={examType === 'RANKING' || (examType === 'VOCAB' && noPassThreshold)}
+                      readOnly={examType === 'RANKING' || ((examType === 'VOCAB' || examType === 'WORD_TEST') && noPassThreshold)}
                       placeholder={noPassThreshold ? "기준 제외" : ""}
                       className={`w-full px-5 py-4 bg-slate-50 rounded-2xl border-none focus:ring-4 focus:ring-slate-100 outline-none font-bold text-slate-900 ${ (examType === 'RANKING' || noPassThreshold) ? 'opacity-50' : ''}`} 
                     />
@@ -404,10 +439,14 @@ const ExamManagement: React.FC<ExamManagementProps> = ({ students, exams, onAddE
               <div className="space-y-6">
                 <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-slate-100 pb-4">
                   <h4 className="font-black text-slate-800 text-sm uppercase tracking-widest">학생별 결과 입력 ({filteredStudentsForInput.length}명)</h4>
-                  <div className="flex bg-slate-100 p-1 rounded-xl w-full sm:w-auto">
-                    <button onClick={() => setInputMode('WRONG')} className={`flex-1 sm:flex-none px-4 py-2 rounded-lg text-[11px] font-black transition-all ${inputMode === 'WRONG' ? 'bg-white text-red-500 shadow-sm' : 'text-slate-400'}`}>오답 번호 입력</button>
-                    <button onClick={() => setInputMode('CORRECT')} className={`flex-1 sm:flex-none px-4 py-2 rounded-lg text-[11px] font-black transition-all ${inputMode === 'CORRECT' ? 'bg-white text-green-600 shadow-sm' : 'text-slate-400'}`}>정답 번호 입력</button>
-                  </div>
+                  
+                  {/* 단어 시험일 경우 토글 숨김 */}
+                  {examType !== 'WORD_TEST' && (
+                    <div className="flex bg-slate-100 p-1 rounded-xl w-full sm:w-auto">
+                      <button onClick={() => setInputMode('WRONG')} className={`flex-1 sm:flex-none px-4 py-2 rounded-lg text-[11px] font-black transition-all ${inputMode === 'WRONG' ? 'bg-white text-red-500 shadow-sm' : 'text-slate-400'}`}>오답 번호 입력</button>
+                      <button onClick={() => setInputMode('CORRECT')} className={`flex-1 sm:flex-none px-4 py-2 rounded-lg text-[11px] font-black transition-all ${inputMode === 'CORRECT' ? 'bg-white text-green-600 shadow-sm' : 'text-slate-400'}`}>정답 번호 입력</button>
+                    </div>
+                  )}
                 </div>
 
                 <div className="space-y-3">
@@ -419,13 +458,21 @@ const ExamManagement: React.FC<ExamManagementProps> = ({ students, exams, onAddE
                       </div>
                       <div className="flex items-center gap-3">
                         <div className="flex-1">
-                          <label className={`block text-[8px] font-black uppercase mb-1 ${inputMode === 'WRONG' ? 'text-red-400' : 'text-green-500'}`}>{inputMode === 'WRONG' ? '틀린 번호' : '맞은 번호'} (콤마 구분)</label>
-                          <input type="text" placeholder={inputMode === 'WRONG' ? "예: 1, 4, 12" : "예: 2, 3, 5, 6..."} value={tempScores[student.id]?.rawInput || ''} onChange={(e) => updateStudentScore(student.id, e.target.value)} className={`w-full px-4 py-2 bg-white rounded-xl border border-slate-100 text-xs font-bold outline-none focus:ring-2 transition-all ${inputMode === 'WRONG' ? 'text-red-500 focus:ring-red-100' : 'text-green-600 focus:ring-green-100'}`} />
+                          <label className={`block text-[8px] font-black uppercase mb-1 ${examType === 'WORD_TEST' ? 'text-blue-500' : (inputMode === 'WRONG' ? 'text-red-400' : 'text-green-500')}`}>
+                            {examType === 'WORD_TEST' ? '맞은 단어 개수' : (inputMode === 'WRONG' ? '틀린 번호 (콤마 구분)' : '맞은 번호 (콤마 구분)')}
+                          </label>
+                          <input 
+                            type={examType === 'WORD_TEST' ? "number" : "text"}
+                            placeholder={examType === 'WORD_TEST' ? "0" : (inputMode === 'WRONG' ? "예: 1, 4, 12" : "예: 2, 3, 5, 6...")} 
+                            value={tempScores[student.id]?.rawInput || ''} 
+                            onChange={(e) => updateStudentScore(student.id, e.target.value)} 
+                            className={`w-full px-4 py-2 bg-white rounded-xl border border-slate-100 text-xs font-bold outline-none focus:ring-2 transition-all ${examType === 'WORD_TEST' ? 'text-blue-600 focus:ring-blue-100' : (inputMode === 'WRONG' ? 'text-red-500 focus:ring-red-100' : 'text-green-600 focus:ring-green-100')}`} 
+                          />
                         </div>
                         <div className="w-24 text-right">
-                          <label className="block text-[8px] font-black text-slate-400 uppercase mb-1">성적</label>
-                          <div className="w-full px-3 py-2 bg-white rounded-xl border border-slate-100 text-right font-black text-slate-900">
-                             {tempScores[student.id]?.score ?? (inputMode === 'WRONG' ? (examType === 'RANKING' ? maxScore : totalQuestions) : 0)}
+                          <label className="block text-[8px] font-black text-slate-400 uppercase mb-1">현재 성적</label>
+                          <div className={`w-full px-3 py-2 bg-white rounded-xl border border-slate-100 text-right font-black ${examType === 'WORD_TEST' ? 'text-blue-600' : 'text-slate-900'}`}>
+                             {tempScores[student.id]?.score ?? (examType === 'WORD_TEST' ? 0 : (inputMode === 'WRONG' ? (examType === 'RANKING' ? maxScore : totalQuestions) : 0))}
                              <span className="text-[10px] ml-1 opacity-50">{unit}</span>
                           </div>
                         </div>
