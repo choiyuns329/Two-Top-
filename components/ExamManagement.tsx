@@ -22,6 +22,7 @@ const ExamManagement: React.FC<ExamManagementProps> = ({ students, exams, onAddE
   const [questionPoints, setQuestionPoints] = useState<number[]>([]);
   const [selectedSchools, setSelectedSchools] = useState<string[]>([]);
   const [passThreshold, setPassThreshold] = useState<number | ''>('');
+  const [noPassThreshold, setNoPassThreshold] = useState(false);
   
   const [tempScores, setTempScores] = useState<Record<string, { score: number, rawInput: string }>>({});
   const [selectedExamId, setSelectedExamId] = useState<string | null>(null);
@@ -55,12 +56,10 @@ const ExamManagement: React.FC<ExamManagementProps> = ({ students, exams, onAddE
         const rawInput = tempScores[s.id].rawInput;
         const inputNums = rawInput.split(',').map(n => parseInt(n.trim())).filter(n => !isNaN(n));
         
-        // 내부 데이터는 항상 '오답' 기준으로 저장하여 분석 도구 호환성 유지
         let finalWrongQuestions: number[] = [];
         if (inputMode === 'WRONG') {
           finalWrongQuestions = inputNums;
         } else {
-          // 정답 입력 모드일 경우: 전체 문항 중 입력되지 않은 번호를 오답으로 처리
           const allNums = Array.from({ length: totalQuestions }, (_, i) => i + 1);
           finalWrongQuestions = allNums.filter(n => !inputNums.includes(n));
         }
@@ -81,7 +80,7 @@ const ExamManagement: React.FC<ExamManagementProps> = ({ students, exams, onAddE
       questionPoints: examType === 'RANKING' ? questionPoints : undefined,
       maxScore: examType === 'RANKING' ? maxScore : totalQuestions,
       targetSchools: selectedSchools.length > 0 ? selectedSchools : undefined,
-      passThreshold: passThreshold === '' ? undefined : Number(passThreshold),
+      passThreshold: (examType === 'RANKING' || noPassThreshold || passThreshold === '') ? undefined : Number(passThreshold),
       scores
     };
 
@@ -93,27 +92,10 @@ const ExamManagement: React.FC<ExamManagementProps> = ({ students, exams, onAddE
   const resetForm = () => {
     setTitle('');
     setPassThreshold('');
+    setNoPassThreshold(false);
     setTempScores({});
     setSelectedSchools([]);
     setInputMode('WRONG');
-  };
-
-  const updateQuestionPoint = (index: number, val: number) => {
-    const updated = [...questionPoints];
-    updated[index] = val;
-    setQuestionPoints(updated);
-    const newMax = updated.reduce((a, b) => a + b, 0);
-    setMaxScore(newMax);
-
-    // 배점이 바뀌면 기존 입력값들 재계산
-    setTempScores(prev => {
-      const next = { ...prev };
-      Object.keys(next).forEach(studentId => {
-        const { score } = calculateScoreFromInput(next[studentId].rawInput, updated, newMax);
-        next[studentId].score = score;
-      });
-      return next;
-    });
   };
 
   const calculateScoreFromInput = (input: string, points: number[], currentMax: number) => {
@@ -135,7 +117,6 @@ const ExamManagement: React.FC<ExamManagementProps> = ({ students, exams, onAddE
         score = sum;
       }
     } else {
-      // VOCAB (개수 평가)
       if (inputMode === 'WRONG') {
         score = Math.max(0, totalQuestions - nums.length);
       } else {
@@ -152,7 +133,17 @@ const ExamManagement: React.FC<ExamManagementProps> = ({ students, exams, onAddE
     });
   };
 
-  // 입력 모드 변경 시 기존 점수들 재계산
+  // Add missing updateQuestionPoint function to fix "Cannot find name 'updateQuestionPoint'"
+  const updateQuestionPoint = (idx: number, val: number) => {
+    const nextPoints = [...questionPoints];
+    nextPoints[idx] = val;
+    setQuestionPoints(nextPoints);
+    if (examType === 'RANKING') {
+      setMaxScore(nextPoints.reduce((a, b) => a + b, 0));
+    }
+  };
+
+  // Ensure scores are updated when points or mode change by adding dependencies
   useEffect(() => {
     setTempScores(prev => {
       const next = { ...prev };
@@ -162,7 +153,7 @@ const ExamManagement: React.FC<ExamManagementProps> = ({ students, exams, onAddE
       });
       return next;
     });
-  }, [inputMode]);
+  }, [inputMode, questionPoints, maxScore]);
 
   const toggleSchool = (school: string) => {
     setSelectedSchools(prev => 
@@ -242,7 +233,6 @@ const ExamManagement: React.FC<ExamManagementProps> = ({ students, exams, onAddE
               </div>
             </div>
 
-            {/* School Stats and Table omitted for brevity but remain the same */}
             <div className="p-8 bg-slate-50 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 border-b border-slate-200">
               {schoolStats.map(stat => (
                 <div key={stat.schoolName} className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
@@ -295,7 +285,7 @@ const ExamManagement: React.FC<ExamManagementProps> = ({ students, exams, onAddE
                       <td className="px-8 py-4">
                         <div className="flex flex-col">
                           <span className="font-black text-slate-900 text-lg">{res.score}{unit}</span>
-                          {selectedExam.type === 'VOCAB' && (
+                          {selectedExam.passThreshold !== undefined && selectedExam.type === 'VOCAB' && (
                             <span className={`text-[10px] font-black uppercase ${res.isPassed ? 'text-green-500' : 'text-red-500'}`}>
                               {res.isPassed ? 'PASS' : 'FAIL'}
                             </span>
@@ -337,28 +327,13 @@ const ExamManagement: React.FC<ExamManagementProps> = ({ students, exams, onAddE
             </div>
             
             <div className="p-8 overflow-y-auto flex-1 space-y-8 custom-scrollbar">
-              {/* Type Selection */}
               <div className="space-y-6">
                 <div className="grid grid-cols-2 gap-4">
-                  <button 
-                    onClick={() => setExamType('RANKING')} 
-                    className={`p-6 rounded-[2rem] border-2 transition-all flex flex-col items-center gap-2 ${
-                      examType === 'RANKING' 
-                        ? 'border-slate-900 bg-slate-900 text-white shadow-2xl scale-105' 
-                        : 'border-slate-100 bg-white text-slate-400 hover:border-slate-300'
-                    }`}
-                  >
+                  <button onClick={() => setExamType('RANKING')} className={`p-6 rounded-[2rem] border-2 transition-all flex flex-col items-center gap-2 ${examType === 'RANKING' ? 'border-slate-900 bg-slate-900 text-white shadow-2xl scale-105' : 'border-slate-100 bg-white text-slate-400 hover:border-slate-300'}`}>
                     <span className="text-2xl">🏆</span>
                     <span className="font-black text-sm uppercase tracking-widest">점수 평가</span>
                   </button>
-                  <button 
-                    onClick={() => setExamType('VOCAB')} 
-                    className={`p-6 rounded-[2rem] border-2 transition-all flex flex-col items-center gap-2 ${
-                      examType === 'VOCAB' 
-                        ? 'border-slate-900 bg-slate-900 text-white shadow-2xl scale-105' 
-                        : 'border-slate-100 bg-white text-slate-400 hover:border-slate-300'
-                    }`}
-                  >
+                  <button onClick={() => setExamType('VOCAB')} className={`p-6 rounded-[2rem] border-2 transition-all flex flex-col items-center gap-2 ${examType === 'VOCAB' ? 'border-slate-900 bg-slate-900 text-white shadow-2xl scale-105' : 'border-slate-100 bg-white text-slate-400 hover:border-slate-300'}`}>
                     <span className="text-2xl">📖</span>
                     <span className="font-black text-sm uppercase tracking-widest">개수 평가</span>
                   </button>
@@ -368,13 +343,7 @@ const ExamManagement: React.FC<ExamManagementProps> = ({ students, exams, onAddE
                   <label className="block text-[10px] font-black text-slate-400 uppercase mb-3 tracking-widest">응시 대상 학교 선택</label>
                   <div className="flex flex-wrap gap-2">
                     {allAvailableSchools.map(school => (
-                      <button
-                        key={school}
-                        onClick={() => toggleSchool(school)}
-                        className={`px-4 py-2 rounded-xl text-xs font-bold transition-all border ${
-                          selectedSchools.includes(school) ? 'bg-slate-900 text-white border-slate-900' : 'bg-white text-slate-500 border-slate-200 hover:border-slate-400'
-                        }`}
-                      >
+                      <button key={school} onClick={() => toggleSchool(school)} className={`px-4 py-2 rounded-xl text-xs font-bold transition-all border ${selectedSchools.includes(school) ? 'bg-slate-900 text-white border-slate-900' : 'bg-white text-slate-500 border-slate-200 hover:border-slate-400'}`}>
                         {school}
                       </button>
                     ))}
@@ -394,13 +363,24 @@ const ExamManagement: React.FC<ExamManagementProps> = ({ students, exams, onAddE
                     <input type="number" value={totalQuestions} onChange={(e) => setTotalQuestions(Number(e.target.value))} className="w-full px-5 py-4 bg-slate-50 rounded-2xl border-none focus:ring-4 focus:ring-slate-100 outline-none font-bold text-slate-900" />
                   </div>
                   <div>
-                    <label className="block text-[10px] font-black text-slate-400 uppercase mb-2 tracking-widest">{examType === 'RANKING' ? '총점 (자동계산)' : '통과 기준 (개)'}</label>
+                    <div className="flex justify-between items-center mb-2">
+                      <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                        {examType === 'RANKING' ? '총점 (자동계산)' : '통과 기준 (개)' }
+                      </label>
+                      {examType === 'VOCAB' && (
+                        <label className="flex items-center gap-2 cursor-pointer">
+                          <input type="checkbox" checked={noPassThreshold} onChange={(e) => setNoPassThreshold(e.target.checked)} className="w-3 h-3 rounded" />
+                          <span className="text-[10px] font-black text-slate-400 uppercase">기준 없음</span>
+                        </label>
+                      )}
+                    </div>
                     <input 
                       type="number" 
                       value={examType === 'RANKING' ? maxScore : passThreshold} 
-                      onChange={(e) => examType === 'RANKING' ? null : setPassThreshold(Number(e.target.value))} 
-                      readOnly={examType === 'RANKING'}
-                      className={`w-full px-5 py-4 bg-slate-50 rounded-2xl border-none focus:ring-4 focus:ring-slate-100 outline-none font-bold text-slate-900 ${examType === 'RANKING' ? 'opacity-70' : ''}`} 
+                      onChange={(e) => setPassThreshold(Number(e.target.value))} 
+                      readOnly={examType === 'RANKING' || (examType === 'VOCAB' && noPassThreshold)}
+                      placeholder={noPassThreshold ? "기준 제외" : ""}
+                      className={`w-full px-5 py-4 bg-slate-50 rounded-2xl border-none focus:ring-4 focus:ring-slate-100 outline-none font-bold text-slate-900 ${ (examType === 'RANKING' || noPassThreshold) ? 'opacity-50' : ''}`} 
                     />
                   </div>
                 </div>
@@ -412,12 +392,7 @@ const ExamManagement: React.FC<ExamManagementProps> = ({ students, exams, onAddE
                       {questionPoints.map((point, idx) => (
                         <div key={idx} className="flex flex-col items-center gap-1">
                           <span className="text-[9px] font-black text-white/30">{idx + 1}</span>
-                          <input 
-                            type="number" 
-                            value={point} 
-                            onChange={(e) => updateQuestionPoint(idx, Number(e.target.value))}
-                            className="w-full bg-white/10 border-none rounded-lg p-1 text-center text-xs font-black outline-none focus:bg-white/20 transition-all"
-                          />
+                          <input type="number" value={point} onChange={(e) => updateQuestionPoint(idx, Number(e.target.value))} className="w-full bg-white/10 border-none rounded-lg p-1 text-center text-xs font-black outline-none focus:bg-white/20 transition-all" />
                         </div>
                       ))}
                     </div>
@@ -429,21 +404,9 @@ const ExamManagement: React.FC<ExamManagementProps> = ({ students, exams, onAddE
               <div className="space-y-6">
                 <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-slate-100 pb-4">
                   <h4 className="font-black text-slate-800 text-sm uppercase tracking-widest">학생별 결과 입력 ({filteredStudentsForInput.length}명)</h4>
-                  
-                  {/* Input Mode Toggle */}
                   <div className="flex bg-slate-100 p-1 rounded-xl w-full sm:w-auto">
-                    <button 
-                      onClick={() => setInputMode('WRONG')}
-                      className={`flex-1 sm:flex-none px-4 py-2 rounded-lg text-[11px] font-black transition-all ${inputMode === 'WRONG' ? 'bg-white text-red-500 shadow-sm' : 'text-slate-400'}`}
-                    >
-                      오답 번호 입력
-                    </button>
-                    <button 
-                      onClick={() => setInputMode('CORRECT')}
-                      className={`flex-1 sm:flex-none px-4 py-2 rounded-lg text-[11px] font-black transition-all ${inputMode === 'CORRECT' ? 'bg-white text-green-600 shadow-sm' : 'text-slate-400'}`}
-                    >
-                      정답 번호 입력
-                    </button>
+                    <button onClick={() => setInputMode('WRONG')} className={`flex-1 sm:flex-none px-4 py-2 rounded-lg text-[11px] font-black transition-all ${inputMode === 'WRONG' ? 'bg-white text-red-500 shadow-sm' : 'text-slate-400'}`}>오답 번호 입력</button>
+                    <button onClick={() => setInputMode('CORRECT')} className={`flex-1 sm:flex-none px-4 py-2 rounded-lg text-[11px] font-black transition-all ${inputMode === 'CORRECT' ? 'bg-white text-green-600 shadow-sm' : 'text-slate-400'}`}>정답 번호 입력</button>
                   </div>
                 </div>
 
@@ -456,16 +419,8 @@ const ExamManagement: React.FC<ExamManagementProps> = ({ students, exams, onAddE
                       </div>
                       <div className="flex items-center gap-3">
                         <div className="flex-1">
-                          <label className={`block text-[8px] font-black uppercase mb-1 ${inputMode === 'WRONG' ? 'text-red-400' : 'text-green-500'}`}>
-                            {inputMode === 'WRONG' ? '틀린 번호' : '맞은 번호'} (콤마 구분)
-                          </label>
-                          <input 
-                            type="text" 
-                            placeholder={inputMode === 'WRONG' ? "예: 1, 4, 12" : "예: 2, 3, 5, 6..."} 
-                            value={tempScores[student.id]?.rawInput || ''} 
-                            onChange={(e) => updateStudentScore(student.id, e.target.value)} 
-                            className={`w-full px-4 py-2 bg-white rounded-xl border border-slate-100 text-xs font-bold outline-none focus:ring-2 transition-all ${inputMode === 'WRONG' ? 'text-red-500 focus:ring-red-100' : 'text-green-600 focus:ring-green-100'}`} 
-                          />
+                          <label className={`block text-[8px] font-black uppercase mb-1 ${inputMode === 'WRONG' ? 'text-red-400' : 'text-green-500'}`}>{inputMode === 'WRONG' ? '틀린 번호' : '맞은 번호'} (콤마 구분)</label>
+                          <input type="text" placeholder={inputMode === 'WRONG' ? "예: 1, 4, 12" : "예: 2, 3, 5, 6..."} value={tempScores[student.id]?.rawInput || ''} onChange={(e) => updateStudentScore(student.id, e.target.value)} className={`w-full px-4 py-2 bg-white rounded-xl border border-slate-100 text-xs font-bold outline-none focus:ring-2 transition-all ${inputMode === 'WRONG' ? 'text-red-500 focus:ring-red-100' : 'text-green-600 focus:ring-green-100'}`} />
                         </div>
                         <div className="w-24 text-right">
                           <label className="block text-[8px] font-black text-slate-400 uppercase mb-1">성적</label>
@@ -477,20 +432,12 @@ const ExamManagement: React.FC<ExamManagementProps> = ({ students, exams, onAddE
                       </div>
                     </div>
                   ))}
-                  {filteredStudentsForInput.length === 0 && (
-                    <div className="py-12 text-center text-slate-400 bg-slate-50 rounded-3xl border-2 border-dashed border-slate-200">
-                      <p className="font-bold">응시 대상 학생이 없습니다.</p>
-                      <p className="text-xs">선택한 학교에 소속된 학생을 먼저 등록해주세요.</p>
-                    </div>
-                  )}
                 </div>
               </div>
             </div>
 
             <div className="p-8 border-t border-slate-100 bg-slate-50">
-              <button onClick={handleCreateExam} disabled={!title || filteredStudentsForInput.length === 0} className="w-full bg-slate-900 text-white py-5 rounded-[1.5rem] font-black text-lg hover:bg-slate-800 shadow-2xl disabled:opacity-50 transition-all">
-                시험 결과 저장 및 통계 생성
-              </button>
+              <button onClick={handleCreateExam} disabled={!title || filteredStudentsForInput.length === 0} className="w-full bg-slate-900 text-white py-5 rounded-[1.5rem] font-black text-lg hover:bg-slate-800 shadow-2xl disabled:opacity-50 transition-all">시험 결과 저장 및 통계 생성</button>
             </div>
           </div>
         </div>

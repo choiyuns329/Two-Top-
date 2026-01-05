@@ -47,13 +47,11 @@ const StudentManagement: React.FC<StudentManagementProps> = ({
   const studentStatusMap = useMemo(() => {
     if (exams.length === 0) return {};
     const latestExam = exams[exams.length - 1];
-    // Fix: calculateExamResults expects Exam object as first argument
     const results = calculateExamResults(latestExam, students);
-    const map: Record<string, { isPass: boolean }> = {};
+    const map: Record<string, { isPass?: boolean }> = {};
     
     results.forEach(res => {
-      const isPass = res.isPassed !== undefined ? res.isPassed : true;
-      map[res.studentId] = { isPass };
+      map[res.studentId] = { isPass: res.isPassed };
     });
     return map;
   }, [exams, students]);
@@ -111,8 +109,10 @@ const StudentManagement: React.FC<StudentManagementProps> = ({
     const next = new Set<string>();
     filteredAndSortedStudents.forEach(s => {
       const status = studentStatusMap[s.id];
-      if (pass && status?.isPass) next.add(s.id);
-      if (!pass && (status && !status.isPass)) next.add(s.id);
+      if (status && status.isPass !== undefined) {
+        if (pass && status.isPass) next.add(s.id);
+        if (!pass && !status.isPass) next.add(s.id);
+      }
     });
     setSelectedIds(next);
   };
@@ -204,15 +204,16 @@ const StudentManagement: React.FC<StudentManagementProps> = ({
               ) : (
                 filteredAndSortedStudents.map((student) => {
                   const status = studentStatusMap[student.id];
+                  const hasThreshold = status && status.isPass !== undefined;
                   return (
                     <tr key={student.id} className={`hover:bg-blue-50 transition-colors ${selectedIds.has(student.id) ? 'bg-blue-50/50' : ''}`}>
                       <td className="px-6 py-4 text-center"><input type="checkbox" checked={selectedIds.has(student.id)} onChange={() => toggleSelect(student.id)} className="w-4 h-4 rounded cursor-pointer" /></td>
                       <td className="px-6 py-4 font-bold text-slate-800">{student.name}</td>
                       <td className="px-6 py-4 text-sm text-slate-600">{student.school || '-'}</td>
                       <td className="px-6 py-4">
-                        {status ? (
+                        {hasThreshold ? (
                           <span className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase ${status.isPass ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>{status.isPass ? 'PASS' : 'FAIL'}</span>
-                        ) : <span className="text-[10px] text-slate-400 font-bold uppercase">No Record</span>}
+                        ) : <span className="text-[10px] text-slate-400 font-bold uppercase tracking-tight">Evaluated</span>}
                       </td>
                       <td className="px-6 py-4 text-sm text-slate-600">{student.phone || '-'}</td>
                       <td className="px-6 py-4 text-right">
@@ -227,23 +228,6 @@ const StudentManagement: React.FC<StudentManagementProps> = ({
           </table>
         </div>
       </div>
-
-      {editingStudent && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white w-full max-w-md rounded-2xl shadow-2xl overflow-hidden p-6 animate-in zoom-in duration-200">
-            <h3 className="text-xl font-bold text-slate-800 mb-6">학생 정보 수정</h3>
-            <form onSubmit={handleUpdate} className="space-y-4">
-              <input type="text" value={editName} onChange={(e) => setEditName(e.target.value)} className="w-full px-4 py-2 border rounded-lg outline-none" required placeholder="이름" />
-              <input type="text" value={editSchool} onChange={(e) => setEditSchool(e.target.value)} className="w-full px-4 py-2 border rounded-lg outline-none" placeholder="학교" />
-              <input type="tel" value={editPhone} onChange={(e) => setEditPhone(e.target.value)} className="w-full px-4 py-2 border rounded-lg outline-none" placeholder="연락처" />
-              <div className="pt-4 flex gap-3">
-                <button type="button" onClick={() => setEditingStudent(null)} className="flex-1 px-4 py-2 border rounded-lg font-bold">취소</button>
-                <button type="submit" className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg font-bold">수정 완료</button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
     </div>
   );
 };
