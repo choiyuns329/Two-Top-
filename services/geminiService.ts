@@ -7,7 +7,8 @@ export const getAIInsights = async (
   summary: ExamSummary,
   results: CalculatedResult[]
 ) => {
-  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY as string });
+  // Always use process.env.API_KEY directly for initialization
+  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
   
   const prompt = `
     당신은 베테랑 학원 강사입니다. 다음 시험 데이터를 분석하여 한국어로 전문적인 교육 리포트를 작성하세요.
@@ -43,7 +44,8 @@ export const getAIInsights = async (
 };
 
 export const extractScoresFromImage = async (base64Image: string, studentNames: string[]) => {
-  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY as string });
+  // Always use process.env.API_KEY directly for initialization
+  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
   const prompt = `
     이미지(시험지 또는 성적표)에서 학생의 이름과 점수를 정확히 추출하세요.
