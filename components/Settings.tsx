@@ -25,7 +25,7 @@ const Settings: React.FC<SettingsProps> = ({
   const [showSql, setShowSql] = useState(false);
 
   const sqlCode = `
--- 1. 학생 테이블 생성
+-- 1. 학생(students) 테이블 생성
 CREATE TABLE IF NOT EXISTS students (
   id TEXT PRIMARY KEY,
   name TEXT NOT NULL,
@@ -35,7 +35,7 @@ CREATE TABLE IF NOT EXISTS students (
   "createdAt" BIGINT
 );
 
--- 2. 시험 테이블 생성 (targetSchools 필드 추가)
+-- 2. 시험(exams) 테이블 생성
 CREATE TABLE IF NOT EXISTS exams (
   id TEXT PRIMARY KEY,
   title TEXT NOT NULL,
@@ -46,10 +46,14 @@ CREATE TABLE IF NOT EXISTS exams (
   scores JSONB NOT NULL
 );
 
--- 3. 실시간 동기화 활성화
-ALTER PUBLICATION supabase_realtime ADD TABLE students, exams;
+-- 3. 실시간(Realtime) 동기화 활성화
+-- 이 명령어를 실행해야 한 기기에서 입력 시 다른 기기에서 즉시 새로고침됩니다.
+BEGIN;
+  DROP PUBLICATION IF EXISTS supabase_realtime;
+  CREATE PUBLICATION supabase_realtime FOR TABLE students, exams;
+COMMIT;
 
--- 4. 보안 정책(RLS) 설정
+-- 4. 보안 정책(RLS) 설정 (모든 접근 허용)
 ALTER TABLE students ENABLE ROW LEVEL SECURITY;
 ALTER TABLE exams ENABLE ROW LEVEL SECURITY;
 
@@ -66,112 +70,134 @@ CREATE POLICY "Enable access for all" ON exams FOR ALL USING (true) WITH CHECK (
       alert('URL과 API Key를 모두 입력해주세요.');
       return;
     }
-    onSaveConfig({ url, anonKey: key });
-    alert('연결 설정이 저장되었습니다. 잠시 후 데이터 동기화를 시작합니다.');
+    // URL 끝에 /가 있으면 제거
+    const cleanUrl = url.endsWith('/') ? url.slice(0, -1) : url;
+    onSaveConfig({ url: cleanUrl, anonKey: key });
+    alert('연결 설정이 저장되었습니다. 앱이 새로고침되며 데이터 동기화가 시작됩니다.');
     window.location.reload();
   };
 
   const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text);
-    alert('SQL 코드가 복사되었습니다! Supabase의 SQL Editor에 붙여넣으세요.');
+    alert('SQL 코드가 복사되었습니다! Supabase 웹사이트의 SQL Editor에 붙여넣으세요.');
   };
 
   return (
-    <div className="max-w-4xl mx-auto space-y-8 pb-20">
-      {/* Step by Step Guide */}
-      <div className="bg-slate-900 text-white p-8 rounded-3xl shadow-xl overflow-hidden relative">
+    <div className="max-w-4xl mx-auto space-y-8 pb-20 animate-in fade-in slide-in-from-bottom-4">
+      {/* Detailed Guide Section */}
+      <div className="bg-slate-900 text-white p-10 rounded-[3rem] shadow-2xl relative overflow-hidden">
         <div className="relative z-10">
-          <h3 className="text-2xl font-black mb-6 flex items-center">
-            <span className="bg-blue-500 text-white w-8 h-8 rounded-full flex items-center justify-center mr-3 text-sm">!</span>
-            기기 간 데이터 공유 가이드
-          </h3>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <div className="bg-white/10 p-5 rounded-2xl border border-white/10">
-              <p className="text-blue-400 font-black text-xs mb-2 uppercase tracking-widest">Step 01</p>
-              <p className="font-bold text-sm mb-2">Supabase 프로젝트 생성</p>
-              <p className="text-xs text-slate-400">supabase.com 가입 후 무료 프로젝트를 만드세요.</p>
+          <div className="flex items-center gap-4 mb-8">
+            <div className="w-12 h-12 bg-blue-500 rounded-2xl flex items-center justify-center text-2xl shadow-lg shadow-blue-500/40">☁️</div>
+            <div>
+              <h3 className="text-2xl font-black">멀티 기기 동기화 가이드</h3>
+              <p className="text-slate-400 text-sm font-bold">다른 핸드폰이나 컴퓨터에서 점수를 같이 보려면 아래 순서대로 세팅하세요.</p>
             </div>
-            <div className="bg-white/10 p-5 rounded-2xl border border-white/10">
-              <p className="text-blue-400 font-black text-xs mb-2 uppercase tracking-widest">Step 02</p>
-              <p className="font-bold text-sm mb-2">데이터 테이블 및 정책 세팅</p>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="bg-white/5 p-6 rounded-3xl border border-white/10 hover:bg-white/10 transition-colors">
+              <span className="inline-block px-3 py-1 bg-blue-500 rounded-full text-[10px] font-black mb-4">STEP 01</span>
+              <p className="font-bold text-base mb-2">DB 테이블 만들기</p>
+              <p className="text-xs text-slate-400 leading-relaxed mb-4">
+                Supabase 메뉴 중 <span className="text-white font-bold">SQL Editor</span>(터미널 모양)를 눌러 아래 코드를 복사해 넣고 <span className="text-blue-400 font-bold">Run</span> 하세요.
+              </p>
               <button 
                 onClick={() => setShowSql(!showSql)}
-                className="text-[10px] bg-white/20 px-2 py-1 rounded font-black hover:bg-white/30 transition-colors"
+                className="w-full py-2 bg-white/10 rounded-xl text-xs font-black hover:bg-white/20 transition-all"
               >
-                {showSql ? 'SQL 코드 닫기' : 'SQL 코드 보기'}
+                {showSql ? '가이드 닫기' : 'SQL 코드 확인하기'}
               </button>
             </div>
-            <div className="bg-white/10 p-5 rounded-2xl border border-white/10">
-              <p className="text-blue-400 font-black text-xs mb-2 uppercase tracking-widest">Step 03</p>
-              <p className="font-bold text-sm mb-2">API 키 입력 및 연결</p>
-              <p className="text-xs text-slate-400">Project Settings의 URL과 Anon Key를 아래 입력하세요.</p>
+
+            <div className="bg-white/5 p-6 rounded-3xl border border-white/10 hover:bg-white/10 transition-colors">
+              <span className="inline-block px-3 py-1 bg-green-500 rounded-full text-[10px] font-black mb-4">STEP 02</span>
+              <p className="font-bold text-base mb-2">연결 키 가져오기</p>
+              <p className="text-xs text-slate-400 leading-relaxed">
+                설정(톱니바퀴) → <span className="text-white font-bold">API</span> 메뉴에서 <br/>
+                <span className="text-green-400 font-bold">Project URL</span>과 <span className="text-green-400 font-bold">anon key</span>를 복사하세요.
+              </p>
+            </div>
+
+            <div className="bg-white/5 p-6 rounded-3xl border border-white/10 hover:bg-white/10 transition-colors">
+              <span className="inline-block px-3 py-1 bg-purple-500 rounded-full text-[10px] font-black mb-4">STEP 03</span>
+              <p className="font-bold text-base mb-2">모든 기기에 입력</p>
+              <p className="text-xs text-slate-400 leading-relaxed">
+                동기화할 다른 핸드폰에서도 우리 앱을 켜고, 아래 입력창에 <span className="text-purple-400 font-bold">같은 URL/Key</span>를 넣고 저장하면 끝!
+              </p>
             </div>
           </div>
 
           {showSql && (
-            <div className="mt-6 animate-in fade-in slide-in-from-top-2">
-              <div className="bg-black/40 rounded-xl p-4 font-mono text-xs text-blue-300 relative">
-                <button 
-                  onClick={() => copyToClipboard(sqlCode)}
-                  className="absolute top-4 right-4 bg-blue-600 text-white px-3 py-1 rounded-lg font-bold hover:bg-blue-500"
-                >
-                  COPY SQL
-                </button>
-                <pre className="overflow-x-auto">{sqlCode}</pre>
+            <div className="mt-8 animate-in zoom-in-95 duration-200">
+              <div className="bg-black/60 rounded-[2rem] p-6 border border-white/10 relative group">
+                <div className="flex justify-between items-center mb-4">
+                  <span className="text-[10px] font-black text-blue-400 uppercase tracking-widest">PostgreSQL Script</span>
+                  <button 
+                    onClick={() => copyToClipboard(sqlCode)}
+                    className="bg-blue-600 text-white px-4 py-2 rounded-xl text-xs font-black hover:bg-blue-500 shadow-lg shadow-blue-600/20 active:scale-95 transition-all"
+                  >
+                    전체 복사하기
+                  </button>
+                </div>
+                <pre className="text-[11px] font-mono text-slate-300 overflow-x-auto custom-scrollbar max-h-60 p-2">
+                  {sqlCode}
+                </pre>
               </div>
-              <p className="text-[11px] text-slate-400 mt-2 italic">* Supabase 왼쪽 메뉴의 &apos;SQL Editor&apos; &rarr; &apos;New Query&apos;에 붙여넣고 &apos;Run&apos;을 누르세요.</p>
             </div>
           )}
         </div>
-        <div className="absolute -bottom-20 -right-20 w-64 h-64 bg-blue-600/20 rounded-full blur-3xl"></div>
+        <div className="absolute -bottom-24 -right-24 w-80 h-80 bg-blue-600/20 rounded-full blur-[100px] pointer-events-none"></div>
       </div>
 
-      <div className="bg-white p-8 rounded-3xl border border-slate-200 shadow-sm">
-        <h3 className="text-xl font-bold mb-6 flex items-center text-slate-800">
-          <span className="mr-3">🔑</span> API 연결 설정
-        </h3>
+      {/* Input Section */}
+      <div className="bg-white p-10 rounded-[3rem] border border-slate-200 shadow-sm relative overflow-hidden group">
+        <div className="flex items-center gap-3 mb-8">
+           <span className="text-2xl">🔗</span>
+           <h3 className="text-xl font-black text-slate-800">연결 정보 입력</h3>
+        </div>
 
         <form onSubmit={handleSave} className="space-y-6">
-          <div className="space-y-4">
-            <div>
-              <label className="block text-xs font-black text-slate-400 uppercase mb-2 tracking-widest">Supabase Project URL</label>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="space-y-2">
+              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Supabase Project URL</label>
               <input
                 type="text"
                 value={url}
                 onChange={(e) => setUrl(e.target.value)}
-                placeholder="https://your-id.supabase.co"
-                className="w-full px-5 py-4 bg-slate-50 border border-slate-100 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none font-mono text-sm"
+                placeholder="https://abc...supabase.co"
+                className="w-full px-6 py-4 bg-slate-50 border border-slate-100 rounded-2xl focus:ring-4 focus:ring-blue-100 outline-none font-mono text-sm transition-all"
               />
             </div>
-            <div>
-              <label className="block text-xs font-black text-slate-400 uppercase mb-2 tracking-widest">Anon / Public API Key</label>
+            <div className="space-y-2">
+              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Anon / Public API Key</label>
               <input
                 type="password"
                 value={key}
                 onChange={(e) => setKey(e.target.value)}
-                placeholder="공개 API 키를 입력하세요"
-                className="w-full px-5 py-4 bg-slate-50 border border-slate-100 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none font-mono text-sm"
+                placeholder="eyJh..."
+                className="w-full px-6 py-4 bg-slate-50 border border-slate-100 rounded-2xl focus:ring-4 focus:ring-blue-100 outline-none font-mono text-sm transition-all"
               />
             </div>
           </div>
 
-          <div className="flex gap-3 pt-4">
+          <div className="flex flex-col sm:flex-row gap-4 pt-4">
             <button
               type="submit"
-              className="flex-1 bg-slate-900 text-white py-4 rounded-2xl font-black text-lg hover:bg-slate-800 transition-all shadow-xl shadow-slate-200"
+              className="flex-1 bg-slate-900 text-white py-5 rounded-2xl font-black text-lg hover:bg-slate-800 transition-all shadow-xl shadow-slate-200 active:scale-[0.98]"
             >
-              설정 저장 및 연결
+              설정 저장 및 연결하기
             </button>
             {config && (
               <button
                 type="button"
                 onClick={() => {
-                  if(confirm('연결을 해제하시겠습니까? 데이터는 현재 기기에만 저장됩니다.')) {
+                  if(confirm('정말 연결을 해제하시겠습니까? 연결 해제 시 현재 기기에서만 데이터가 저장됩니다.')) {
                     onClearConfig();
                     window.location.reload();
                   }
                 }}
-                className="px-8 py-4 border border-slate-200 text-slate-400 rounded-2xl font-bold hover:bg-slate-50 transition-colors"
+                className="px-10 py-5 border-2 border-slate-100 text-slate-400 rounded-2xl font-black hover:bg-red-50 hover:text-red-500 hover:border-red-100 transition-all active:scale-[0.98]"
               >
                 연결 해제
               </button>
@@ -180,33 +206,46 @@ CREATE POLICY "Enable access for all" ON exams FOR ALL USING (true) WITH CHECK (
         </form>
       </div>
 
+      {/* Migration Section */}
       {isCloudConnected && (
-        <div className="bg-gradient-to-br from-blue-600 to-indigo-700 p-1 rounded-3xl shadow-xl">
-          <div className="bg-white p-8 rounded-[22px]">
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
-              <div>
-                <h3 className="text-xl font-bold text-slate-800 mb-2 flex items-center">
-                  <span className="mr-3 text-2xl">📦</span> 기존 데이터 업로드
-                </h3>
-                <p className="text-slate-500 text-sm">
-                  현재 브라우저에 저장된 <strong>{localData.students.length}명</strong>의 학생과 <strong>{localData.exams.length}건</strong>의 시험 기록을<br/>
-                  연결된 클라우드 서버로 복사합니다. 처음 한 번만 수행하세요.
-                </p>
+        <div className="bg-blue-600 p-10 rounded-[3rem] shadow-xl shadow-blue-200 relative overflow-hidden text-white">
+          <div className="relative z-10 flex flex-col md:flex-row items-center justify-between gap-8">
+            <div className="flex-1">
+              <div className="flex items-center gap-3 mb-4">
+                <span className="text-2xl">🚀</span>
+                <h3 className="text-xl font-black">클라우드 데이터 이전</h3>
               </div>
-              <button
-                onClick={async () => {
-                  setIsPushing(true);
-                  await onPushToCloud();
-                  setIsPushing(false);
-                  alert('모든 데이터가 클라우드로 안전하게 이전되었습니다.');
-                }}
-                disabled={isPushing || (localData.students.length === 0 && localData.exams.length === 0)}
-                className="bg-blue-600 text-white px-8 py-4 rounded-2xl font-black hover:bg-blue-700 disabled:opacity-50 transition-all shadow-lg shadow-blue-200 whitespace-nowrap"
-              >
-                {isPushing ? '데이터 전송 중...' : '클라우드로 데이터 밀어넣기'}
-              </button>
+              <p className="text-blue-100 text-sm font-bold leading-relaxed">
+                현재 핸드폰에만 있는 <span className="text-white underline">{localData.students.length}명</span>의 학생 명단과 <span className="text-white underline">{localData.exams.length}건</span>의 시험 정보를 <br/>
+                방금 연결한 서버로 모두 전송합니다. <br/>
+                <span className="opacity-60 text-xs">* 연결 후 딱 한 번만 하시면 다른 기기에서도 이 데이터가 보입니다.</span>
+              </p>
             </div>
+            <button
+              onClick={async () => {
+                if(!confirm('로컬 데이터를 클라우드로 전송하시겠습니까?')) return;
+                setIsPushing(true);
+                try {
+                  await onPushToCloud();
+                  alert('성공! 이제 다른 기기에서도 이 데이터를 보실 수 있습니다.');
+                } catch(e) {
+                  alert('데이터 전송 중 오류가 발생했습니다. SQL 설정을 다시 확인해주세요.');
+                } finally {
+                  setIsPushing(false);
+                }
+              }}
+              disabled={isPushing || (localData.students.length === 0 && localData.exams.length === 0)}
+              className="bg-white text-blue-600 px-8 py-5 rounded-[2rem] font-black text-lg hover:bg-blue-50 disabled:opacity-50 transition-all shadow-xl active:scale-[0.98] whitespace-nowrap"
+            >
+              {isPushing ? (
+                <div className="flex items-center gap-3">
+                  <div className="w-4 h-4 border-2 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+                  전송 중...
+                </div>
+              ) : '서버로 데이터 밀어넣기'}
+            </button>
           </div>
+          <div className="absolute top-0 right-0 w-64 h-64 bg-white/10 rounded-full -mr-20 -mt-20 blur-3xl"></div>
         </div>
       )}
     </div>
