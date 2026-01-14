@@ -25,7 +25,11 @@ const Settings: React.FC<SettingsProps> = ({
   const [showSql, setShowSql] = useState(false);
 
   const sqlCode = `
--- 1. 학생(students) 테이블 생성
+-- 1. 기존 테이블이 있다면 삭제 (구조 업데이트를 위해 선택적 실행)
+-- DROP TABLE IF EXISTS exams;
+-- DROP TABLE IF EXISTS students;
+
+-- 2. 학생(students) 테이블 생성
 CREATE TABLE IF NOT EXISTS students (
   id TEXT PRIMARY KEY,
   name TEXT NOT NULL,
@@ -35,25 +39,27 @@ CREATE TABLE IF NOT EXISTS students (
   "createdAt" BIGINT
 );
 
--- 2. 시험(exams) 테이블 생성
+-- 3. 시험(exams) 테이블 생성 (모든 필드 포함)
 CREATE TABLE IF NOT EXISTS exams (
   id TEXT PRIMARY KEY,
   title TEXT NOT NULL,
   date TEXT NOT NULL,
+  type TEXT NOT NULL, -- RANKING, VOCAB, WORD_TEST
+  "totalQuestions" INTEGER NOT NULL,
   "maxScore" INTEGER NOT NULL,
   "passThreshold" INTEGER,
+  "questionPoints" JSONB,
   "targetSchools" JSONB,
   scores JSONB NOT NULL
 );
 
--- 3. 실시간(Realtime) 동기화 활성화
--- 이 명령어를 실행해야 한 기기에서 입력 시 다른 기기에서 즉시 새로고침됩니다.
+-- 4. 실시간(Realtime) 동기화 활성화
 BEGIN;
   DROP PUBLICATION IF EXISTS supabase_realtime;
   CREATE PUBLICATION supabase_realtime FOR TABLE students, exams;
 COMMIT;
 
--- 4. 보안 정책(RLS) 설정 (모든 접근 허용)
+-- 5. 보안 정책(RLS) 설정 (모든 접근 허용)
 ALTER TABLE students ENABLE ROW LEVEL SECURITY;
 ALTER TABLE exams ENABLE ROW LEVEL SECURITY;
 
@@ -70,7 +76,6 @@ CREATE POLICY "Enable access for all" ON exams FOR ALL USING (true) WITH CHECK (
       alert('URL과 API Key를 모두 입력해주세요.');
       return;
     }
-    // URL 끝에 /가 있으면 제거
     const cleanUrl = url.endsWith('/') ? url.slice(0, -1) : url;
     onSaveConfig({ url: cleanUrl, anonKey: key });
     alert('연결 설정이 저장되었습니다. 앱이 새로고침되며 데이터 동기화가 시작됩니다.');
@@ -79,7 +84,7 @@ CREATE POLICY "Enable access for all" ON exams FOR ALL USING (true) WITH CHECK (
 
   const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text);
-    alert('SQL 코드가 복사되었습니다! Supabase 웹사이트의 SQL Editor에 붙여넣으세요.');
+    alert('SQL 코드가 복사되었습니다! Supabase 웹사이트의 SQL Editor에 붙여넣고 Run을 누르세요.');
   };
 
   return (
@@ -132,7 +137,7 @@ CREATE POLICY "Enable access for all" ON exams FOR ALL USING (true) WITH CHECK (
             <div className="mt-8 animate-in zoom-in-95 duration-200">
               <div className="bg-black/60 rounded-[2rem] p-6 border border-white/10 relative group">
                 <div className="flex justify-between items-center mb-4">
-                  <span className="text-[10px] font-black text-blue-400 uppercase tracking-widest">PostgreSQL Script</span>
+                  <span className="text-[10px] font-black text-blue-400 uppercase tracking-widest">PostgreSQL Script (2.0)</span>
                   <button 
                     onClick={() => copyToClipboard(sqlCode)}
                     className="bg-blue-600 text-white px-4 py-2 rounded-xl text-xs font-black hover:bg-blue-500 shadow-lg shadow-blue-600/20 active:scale-95 transition-all"
@@ -143,6 +148,7 @@ CREATE POLICY "Enable access for all" ON exams FOR ALL USING (true) WITH CHECK (
                 <pre className="text-[11px] font-mono text-slate-300 overflow-x-auto custom-scrollbar max-h-60 p-2">
                   {sqlCode}
                 </pre>
+                <p className="text-[10px] text-red-400 mt-2 font-bold">* 기존에 테이블을 만드셨다면 SQL Editor에서 모든 내용을 지우고 이 코드로 다시 Run 해주세요.</p>
               </div>
             </div>
           )}
