@@ -38,7 +38,6 @@ const mapExamToDB = (e: Exam) => ({
   max_score: e.maxScore,
   pass_threshold: e.passThreshold,
   question_points: e.questionPoints,
-  // Fix: Property 'target_schools' does not exist on type 'Exam'. Use 'targetSchools'.
   target_schools: e.targetSchools,
   scores: e.scores
 });
@@ -85,7 +84,6 @@ const App: React.FC = () => {
     const initData = async () => {
       setLoading(true);
       
-      // 1. 로컬 저장소에서 우선 로드 (오프라인 우선)
       let localStudents: Student[] = [];
       let localExams: Exam[] = [];
       try {
@@ -100,7 +98,6 @@ const App: React.FC = () => {
       setStudents(localStudents);
       setExams(localExams);
 
-      // 2. 클라우드 연결된 경우 데이터 동기화 시도
       if (supabase) {
         try {
           const { data: sRows, error: sErr } = await supabase.from('students').select('*');
@@ -108,7 +105,6 @@ const App: React.FC = () => {
           
           if (!sErr && sRows) {
             const cloudStudents = sRows.map(mapStudentFromDB);
-            // 병합: 클라우드 데이터를 우선하되, 로컬에만 있는 데이터도 유지
             setStudents(prev => {
               const merged = [...prev];
               cloudStudents.forEach(cs => {
@@ -133,7 +129,7 @@ const App: React.FC = () => {
             });
           }
         } catch (error) {
-          console.warn("Cloud sync failed during initialization, staying with local data.");
+          console.warn("Cloud sync initial failed");
         }
       }
       
@@ -143,7 +139,6 @@ const App: React.FC = () => {
 
     initData();
 
-    // 실시간 동기화 구독
     if (supabase) {
       const channel = supabase
         .channel('db-changes')
@@ -187,9 +182,7 @@ const App: React.FC = () => {
     }
   }, [supabase]);
 
-  // 로컬 저장소 업데이트 (안전 장치 포함)
   useEffect(() => {
-    // 초기 로딩이 끝난 후에만 로컬 저장소에 씁니다. (비어있는 상태로 덮어쓰기 방지)
     if (!loading && isInitialized.current) {
       localStorage.setItem('students', JSON.stringify(students));
       localStorage.setItem('exams', JSON.stringify(exams));
@@ -199,27 +192,18 @@ const App: React.FC = () => {
   const addStudent = async (name: string, school: string, phone: string) => {
     const newStudent: Student = {
       id: Math.random().toString(36).substr(2, 9),
-      name,
-      school,
-      phone,
-      createdAt: Date.now(),
+      name, school, phone, createdAt: Date.now(),
     };
     setStudents(prev => [...prev, newStudent]);
-
     if (supabase) {
-      try {
-        const { error } = await supabase.from('students').insert([mapStudentToDB(newStudent)]);
-        if (error) console.error("Cloud insert error:", error);
-      } catch (e) { console.error(e); }
+      try { await supabase.from('students').insert([mapStudentToDB(newStudent)]); } catch (e) {}
     }
   };
 
   const updateStudent = async (updatedStudent: Student) => {
     setStudents(prev => prev.map(s => s.id === updatedStudent.id ? updatedStudent : s));
     if (supabase) {
-      try {
-        await supabase.from('students').update(mapStudentToDB(updatedStudent)).eq('id', updatedStudent.id);
-      } catch (e) { console.error(e); }
+      try { await supabase.from('students').update(mapStudentToDB(updatedStudent)).eq('id', updatedStudent.id); } catch (e) {}
     }
   };
 
@@ -227,9 +211,7 @@ const App: React.FC = () => {
     if (!window.confirm('정말 삭제하시겠습니까?')) return;
     setStudents(prev => prev.filter(s => s.id !== id));
     if (supabase) {
-      try {
-        await supabase.from('students').delete().eq('id', id);
-      } catch (e) { console.error(e); }
+      try { await supabase.from('students').delete().eq('id', id); } catch (e) {}
     }
   };
 
@@ -240,10 +222,12 @@ const App: React.FC = () => {
         const dbData = mapExamToDB(exam);
         const { error } = await supabase.from('exams').insert([dbData]);
         if (error) {
-          console.error("Cloud Insert Error:", error);
-          const errorMsg = `Code: ${error.code}\nMessage: ${error.message}`;
-          if (error.code === '42P01') alert("서버 테이블이 없습니다. 설정을 확인하세요.");
-          else alert(`서버 저장 실패 (로컬에는 저장됨): ${errorMsg}`);
+          console.error("Supabase Error:", error);
+          if (error.message.includes('column') || error.code === 'PGRST204') {
+            alert("⚠️ 서버 테이블 구조가 구버전입니다!\n\n[동기화 설정] 메뉴에서 새로운 SQL 코드를 복사해 다시 실행하셔야 성적이 서버에 저장됩니다.");
+          } else {
+            alert(`서버 저장 실패: ${error.message}\n(로컬에는 임시 저장됨)`);
+          }
         }
       } catch (e: any) {
         console.error("Sync Error:", e);
@@ -254,9 +238,7 @@ const App: React.FC = () => {
   const updateExam = async (updatedExam: Exam) => {
     setExams(prev => prev.map(e => e.id === updatedExam.id ? updatedExam : e));
     if (supabase) {
-      try {
-        await supabase.from('exams').update(mapExamToDB(updatedExam)).eq('id', updatedExam.id);
-      } catch (e) { console.error(e); }
+      try { await supabase.from('exams').update(mapExamToDB(updatedExam)).eq('id', updatedExam.id); } catch (e) {}
     }
   };
 
@@ -264,9 +246,7 @@ const App: React.FC = () => {
     if (!window.confirm('시험 기록을 삭제하시겠습니까?')) return;
     setExams(prev => prev.filter(e => e.id !== id));
     if (supabase) {
-      try {
-        await supabase.from('exams').delete().eq('id', id);
-      } catch (e) { console.error(e); }
+      try { await supabase.from('exams').delete().eq('id', id); } catch (e) {}
     }
   };
 
@@ -294,7 +274,7 @@ const App: React.FC = () => {
     if (loading && !isInitialized.current) return (
       <div className="flex flex-col items-center justify-center py-32 space-y-4">
         <div className="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
-        <p className="text-slate-500 font-black animate-pulse text-xs">데이터 불러오는 중...</p>
+        <p className="text-slate-500 font-black animate-pulse text-xs">Syncing Cloud...</p>
       </div>
     );
 
