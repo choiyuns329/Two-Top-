@@ -10,6 +10,51 @@ import Settings from './components/Settings.tsx';
 import { ViewMode, Student, Exam, SupabaseConfig } from './types.ts';
 import { createClient } from '@supabase/supabase-js';
 
+// Supabase DB 필드와 앱 모델 간의 변환 유틸리티
+const mapStudentToDB = (s: Student) => ({
+  id: s.id,
+  name: s.name,
+  school: s.school,
+  phone: s.phone,
+  note: s.note,
+  created_at: s.createdAt
+});
+
+const mapStudentFromDB = (row: any): Student => ({
+  id: row.id,
+  name: row.name,
+  school: row.school,
+  phone: row.phone,
+  note: row.note,
+  createdAt: row.created_at
+});
+
+const mapExamToDB = (e: Exam) => ({
+  id: e.id,
+  title: e.title,
+  date: e.date,
+  type: e.type,
+  total_questions: e.totalQuestions,
+  max_score: e.maxScore,
+  pass_threshold: e.passThreshold,
+  question_points: e.questionPoints,
+  target_schools: e.targetSchools,
+  scores: e.scores
+});
+
+const mapExamFromDB = (row: any): Exam => ({
+  id: row.id,
+  title: row.title,
+  date: row.date,
+  type: row.type,
+  totalQuestions: row.total_questions,
+  maxScore: row.max_score,
+  passThreshold: row.pass_threshold,
+  questionPoints: row.question_points,
+  targetSchools: row.target_schools,
+  scores: row.scores
+});
+
 const App: React.FC = () => {
   const [view, setView] = useState<ViewMode>(ViewMode.DASHBOARD);
   const [students, setStudents] = useState<Student[]>([]);
@@ -44,11 +89,11 @@ const App: React.FC = () => {
 
       if (supabase) {
         try {
-          const { data: studentsData, error: sErr } = await supabase.from('students').select('*');
-          const { data: examsData, error: eErr } = await supabase.from('exams').select('*');
+          const { data: sRows, error: sErr } = await supabase.from('students').select('*');
+          const { data: eRows, error: eErr } = await supabase.from('exams').select('*');
           
-          if (!sErr && studentsData) setStudents(studentsData);
-          if (!eErr && examsData) setExams(examsData);
+          if (!sErr && sRows) setStudents(sRows.map(mapStudentFromDB));
+          if (!eErr && eRows) setExams(eRows.map(mapExamFromDB));
         } catch (error) {
           console.warn("Cloud sync failed on init, using local data.");
         }
@@ -63,23 +108,26 @@ const App: React.FC = () => {
         .channel('db-changes')
         .on('postgres_changes', { event: '*', schema: 'public', table: 'students' }, (payload) => {
           if (payload.eventType === 'INSERT') {
-            setStudents(prev => prev.find(s => s.id === payload.new.id) ? prev : [...prev, payload.new as Student]);
+            const newStudent = mapStudentFromDB(payload.new);
+            setStudents(prev => prev.find(s => s.id === newStudent.id) ? prev : [...prev, newStudent]);
           } else if (payload.eventType === 'UPDATE') {
-            setStudents(prev => prev.map(s => s.id === payload.new.id ? (payload.new as Student) : s));
+            const updated = mapStudentFromDB(payload.new);
+            setStudents(prev => prev.map(s => s.id === updated.id ? updated : s));
           } else if (payload.eventType === 'DELETE') {
             setStudents(prev => prev.filter(s => s.id !== payload.old.id));
           }
         })
         .on('postgres_changes', { event: '*', schema: 'public', table: 'exams' }, (payload) => {
           if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
+            const updated = mapExamFromDB(payload.new);
             setExams(prev => {
-              const idx = prev.findIndex(e => e.id === payload.new.id);
+              const idx = prev.findIndex(e => e.id === updated.id);
               if (idx > -1) {
                 const next = [...prev];
-                next[idx] = payload.new as Exam;
+                next[idx] = updated;
                 return next;
               }
-              return [...prev, payload.new as Exam];
+              return [...prev, updated];
             });
           } else if (payload.eventType === 'DELETE') {
             setExams(prev => prev.filter(e => e.id !== payload.old.id));
@@ -87,9 +135,7 @@ const App: React.FC = () => {
         })
         .subscribe();
 
-      return () => {
-        supabase.removeChannel(channel);
-      };
+      return () => { supabase.removeChannel(channel); };
     }
   }, [supabase]);
 
@@ -112,13 +158,9 @@ const App: React.FC = () => {
 
     if (supabase) {
       try {
-        const { error } = await supabase.from('students').insert([newStudent]);
-        if (error) {
-          console.error("Cloud insert error:", error);
-        }
-      } catch (e) {
-        console.error("Network error during cloud sync:", e);
-      }
+        const { error } = await supabase.from('students').insert([mapStudentToDB(newStudent)]);
+        if (error) console.error("Cloud insert error:", error);
+      } catch (e) { console.error(e); }
     }
   };
 
@@ -126,10 +168,8 @@ const App: React.FC = () => {
     setStudents(prev => prev.map(s => s.id === updatedStudent.id ? updatedStudent : s));
     if (supabase) {
       try {
-        await supabase.from('students').update(updatedStudent).eq('id', updatedStudent.id);
-      } catch (e) {
-        console.error(e);
-      }
+        await supabase.from('students').update(mapStudentToDB(updatedStudent)).eq('id', updatedStudent.id);
+      } catch (e) { console.error(e); }
     }
   };
 
@@ -139,31 +179,35 @@ const App: React.FC = () => {
     if (supabase) {
       try {
         await supabase.from('students').delete().eq('id', id);
-      } catch (e) {
-        console.error(e);
-      }
+      } catch (e) { console.error(e); }
     }
   };
 
   const addExam = async (exam: Exam) => {
-    // 1. 즉시 로컬 상태 업데이트
+    // 1. 로컬 저장
     setExams(prev => [...prev, exam]);
 
-    // 2. 클라우드 저장 시도
+    // 2. 클라우드 저장 (매핑 후 전송)
     if (supabase) {
       try {
-        const { error } = await supabase.from('exams').insert([exam]);
+        const dbData = mapExamToDB(exam);
+        const { error } = await supabase.from('exams').insert([dbData]);
         if (error) {
-          console.error("Cloud exam insert error:", error);
-          // 사용자에게 구체적인 도움말 제공
+          console.error("Cloud Exam Insert Error Detail:", error);
+          // 에러 객체를 문자열화하여 더 자세히 알림
+          const errorMsg = `Code: ${error.code}\nMessage: ${error.message}\nDetail: ${error.details || 'No detail'}`;
+          
           if (error.code === '42P01') {
-            alert("서버 테이블이 없습니다. 설정(Settings) 페이지에서 STEP 01의 SQL을 다시 실행해주세요.");
+            alert("서버에 시험 테이블이 없습니다. '동기화 설정' 페이지에서 SQL 코드를 다시 실행하세요.");
+          } else if (error.code === '42703') {
+            alert("서버 테이블 구조가 구버전입니다. '동기화 설정'의 SQL 코드 상단 주석(DROP TABLE)을 참고해 테이블을 재설정하세요.");
           } else {
-            alert(`클라우드 저장 실패: ${error.message}\n(로컬에는 안전하게 저장되었습니다.)`);
+            alert(`클라우드 저장 실패:\n${errorMsg}\n\n(로컬에는 임시 저장되었습니다.)`);
           }
         }
-      } catch (e) {
-        console.error("Exam cloud sync error:", e);
+      } catch (e: any) {
+        console.error("Network or Unexpected Error:", e);
+        alert(`네트워크 오류가 발생했습니다: ${e.message}`);
       }
     }
   };
@@ -172,11 +216,8 @@ const App: React.FC = () => {
     setExams(prev => prev.map(e => e.id === updatedExam.id ? updatedExam : e));
     if (supabase) {
       try {
-        const { error } = await supabase.from('exams').update(updatedExam).eq('id', updatedExam.id);
-        if (error) console.error("Cloud update error:", error);
-      } catch (e) {
-        console.error(e);
-      }
+        await supabase.from('exams').update(mapExamToDB(updatedExam)).eq('id', updatedExam.id);
+      } catch (e) { console.error(e); }
     }
   };
 
@@ -186,32 +227,28 @@ const App: React.FC = () => {
     if (supabase) {
       try {
         await supabase.from('exams').delete().eq('id', id);
-      } catch (e) {
-        console.error(e);
-      }
+      } catch (e) { console.error(e); }
     }
   };
 
   const pushToCloud = async () => {
     if (!supabase) return;
-    const localStudents = JSON.parse(localStorage.getItem('students') || '[]');
-    const localExams = JSON.parse(localStorage.getItem('exams') || '[]');
+    const localStudents: Student[] = JSON.parse(localStorage.getItem('students') || '[]');
+    const localExams: Exam[] = JSON.parse(localStorage.getItem('exams') || '[]');
     
-    // Upsert를 사용하여 중복 방지 및 데이터 전송
     if (localStudents.length > 0) {
-      const { error: sErr } = await supabase.from('students').upsert(localStudents);
-      if (sErr) throw sErr;
+      const { error } = await supabase.from('students').upsert(localStudents.map(mapStudentToDB));
+      if (error) throw error;
     }
     if (localExams.length > 0) {
-      const { error: eErr } = await supabase.from('exams').upsert(localExams);
-      if (eErr) throw eErr;
+      const { error } = await supabase.from('exams').upsert(localExams.map(mapExamToDB));
+      if (error) throw error;
     }
 
-    // 최신 상태 다시 불러오기
-    const { data: s } = await supabase.from('students').select('*');
-    const { data: e } = await supabase.from('exams').select('*');
-    if (s) setStudents(s);
-    if (e) setExams(e);
+    const { data: sRows } = await supabase.from('students').select('*');
+    const { data: eRows } = await supabase.from('exams').select('*');
+    if (sRows) setStudents(sRows.map(mapStudentFromDB));
+    if (eRows) setExams(eRows.map(mapExamFromDB));
   };
 
   const renderContent = () => {
