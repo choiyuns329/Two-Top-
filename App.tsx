@@ -190,20 +190,33 @@ const App: React.FC = () => {
   }, [students, exams, loading]);
 
   const addStudent = async (name: string, school: string, phone: string) => {
+    const newId = Math.random().toString(36).substr(2, 9);
     const newStudent: Student = {
-      id: Math.random().toString(36).substr(2, 9),
+      id: newId,
       name, school, phone, createdAt: Date.now(),
     };
     setStudents(prev => [...prev, newStudent]);
+
     if (supabase) {
-      try { await supabase.from('students').insert([mapStudentToDB(newStudent)]); } catch (e) {}
+      try { 
+        const { error } = await supabase.from('students').insert([mapStudentToDB(newStudent)]); 
+        if (error) {
+          console.error("Student Insert Error:", error);
+          alert(`학생 서버 저장 실패: ${error.message}\n(기존 기기에서 '데이터 최종 업로드'를 실행하면 해결됩니다.)`);
+        }
+      } catch (e: any) {
+        console.error("Network Error:", e);
+      }
     }
   };
 
   const updateStudent = async (updatedStudent: Student) => {
     setStudents(prev => prev.map(s => s.id === updatedStudent.id ? updatedStudent : s));
     if (supabase) {
-      try { await supabase.from('students').update(mapStudentToDB(updatedStudent)).eq('id', updatedStudent.id); } catch (e) {}
+      try { 
+        const { error } = await supabase.from('students').update(mapStudentToDB(updatedStudent)).eq('id', updatedStudent.id); 
+        if (error) alert(`학생 수정 서버 동기화 실패: ${error.message}`);
+      } catch (e) {}
     }
   };
 
@@ -211,7 +224,10 @@ const App: React.FC = () => {
     if (!window.confirm('정말 삭제하시겠습니까?')) return;
     setStudents(prev => prev.filter(s => s.id !== id));
     if (supabase) {
-      try { await supabase.from('students').delete().eq('id', id); } catch (e) {}
+      try { 
+        const { error } = await supabase.from('students').delete().eq('id', id); 
+        if (error) alert(`학생 삭제 서버 동기화 실패: ${error.message}`);
+      } catch (e) {}
     }
   };
 
@@ -223,10 +239,10 @@ const App: React.FC = () => {
         const { error } = await supabase.from('exams').insert([dbData]);
         if (error) {
           console.error("Supabase Error:", error);
-          if (error.message.includes('column') || error.code === 'PGRST204') {
-            alert("⚠️ 서버 테이블 구조가 구버전입니다!\n\n[동기화 설정] 메뉴에서 새로운 SQL 코드를 복사해 다시 실행하셔야 성적이 서버에 저장됩니다.");
+          if (error.code === 'PGRST204' || error.message.includes('column')) {
+            alert("⚠️ 서버 테이블 구조가 다릅니다!\n\n[동기화 설정] 메뉴에서 새로운 SQL 코드를 실행하셔야 'Unknown' 문제를 방지할 수 있습니다.");
           } else {
-            alert(`서버 저장 실패: ${error.message}\n(로컬에는 임시 저장됨)`);
+            alert(`시험 서버 저장 실패: ${error.message}`);
           }
         }
       } catch (e: any) {
@@ -255,15 +271,19 @@ const App: React.FC = () => {
     const localStudents: Student[] = JSON.parse(localStorage.getItem('students') || '[]');
     const localExams: Exam[] = JSON.parse(localStorage.getItem('exams') || '[]');
     
+    // 학생 먼저 전송 (Referential Integrity)
     if (localStudents.length > 0) {
       const { error } = await supabase.from('students').upsert(localStudents.map(mapStudentToDB));
-      if (error) throw error;
+      if (error) throw new Error(`학생 전송 실패: ${error.message}`);
     }
+    
+    // 그 다음 시험 전송
     if (localExams.length > 0) {
       const { error } = await supabase.from('exams').upsert(localExams.map(mapExamToDB));
-      if (error) throw error;
+      if (error) throw new Error(`시험 전송 실패: ${error.message}`);
     }
 
+    // 최신 데이터 다시 불러오기
     const { data: sRows } = await supabase.from('students').select('*');
     const { data: eRows } = await supabase.from('exams').select('*');
     if (sRows) setStudents(sRows.map(mapStudentFromDB));
