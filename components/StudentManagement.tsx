@@ -24,6 +24,7 @@ const StudentManagement: React.FC<StudentManagementProps> = ({
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [filterSchool, setFilterSchool] = useState<string>('all');
 
+  // 수정 관련 상태
   const [editingStudent, setEditingStudent] = useState<Student | null>(null);
   const [editName, setEditName] = useState('');
   const [editSchool, setEditSchool] = useState('');
@@ -147,78 +148,89 @@ const StudentManagement: React.FC<StudentManagementProps> = ({
 
   return (
     <div className="space-y-6">
+      {/* 학생 추가 섹션 */}
       <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
-        <h3 className="text-lg font-bold mb-4 text-slate-800">신규 학생 등록</h3>
+        <h3 className="text-sm font-black mb-4 text-slate-800 uppercase tracking-widest">New Student</h3>
         <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          <input type="text" placeholder="이름 (필수)" value={name} onChange={(e) => setName(e.target.value)} className="px-4 py-2 border border-slate-300 rounded-lg outline-none" required />
-          <input type="text" placeholder="학교명 (선택)" value={school} onChange={(e) => setSchool(e.target.value)} className="px-4 py-2 border border-slate-300 rounded-lg outline-none" />
-          <input type="tel" placeholder="연락처" value={phone} onChange={(e) => setPhone(e.target.value)} className="px-4 py-2 border border-slate-300 rounded-lg outline-none" />
-          <button type="submit" className="bg-blue-600 text-white px-6 py-2 rounded-lg font-bold hover:bg-blue-700 shadow-sm">등록 완료</button>
+          <input type="text" placeholder="이름 (필수)" value={name} onChange={(e) => setName(e.target.value)} className="px-4 py-3 bg-slate-50 border-none rounded-xl outline-none font-bold text-sm" required />
+          <input type="text" placeholder="학교명" value={school} onChange={(e) => setSchool(e.target.value)} className="px-4 py-3 bg-slate-50 border-none rounded-xl outline-none font-bold text-sm" />
+          <input type="tel" placeholder="연락처" value={phone} onChange={(e) => setPhone(e.target.value)} className="px-4 py-3 bg-slate-50 border-none rounded-xl outline-none font-bold text-sm" />
+          <button type="submit" className="bg-slate-900 text-white px-6 py-3 rounded-xl font-black text-sm hover:bg-slate-800 shadow-lg">학생 추가</button>
         </form>
       </div>
 
-      <div className="flex flex-col gap-4 bg-slate-100 p-4 rounded-xl border border-slate-200">
+      {/* 필터 및 벌크 액션 */}
+      <div className="flex flex-col gap-4 bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div className="flex items-center space-x-2">
-            <span className="text-sm font-bold text-slate-600 mr-2">학교 필터:</span>
-            <select value={filterSchool} onChange={(e) => setFilterSchool(e.target.value)} className="bg-white border border-slate-300 text-slate-700 text-sm rounded-lg p-2 outline-none">
-              <option value="all">전체 학교 ({students.length})</option>
+            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest mr-2">School Filter</span>
+            <select value={filterSchool} onChange={(e) => setFilterSchool(e.target.value)} className="bg-slate-50 border-none text-slate-700 text-xs font-black rounded-xl px-4 py-2 outline-none">
+              <option value="all">전체 ({students.length})</option>
               {uniqueSchools.map(sch => <option key={sch} value={sch}>{sch}</option>)}
             </select>
-            <div className="h-6 w-px bg-slate-300 mx-2" />
-            <span className="text-sm font-bold text-slate-600 mr-2">빠른 선택:</span>
-            <button onClick={() => selectByStatus(true)} className="bg-green-100 text-green-700 px-3 py-1.5 rounded-lg text-sm font-bold border border-green-200">✅ 통과자</button>
-            <button onClick={() => selectByStatus(false)} className="bg-red-100 text-red-700 px-3 py-1.5 rounded-lg text-sm font-bold border border-red-200">❌ 탈락자</button>
+            <div className="h-4 w-px bg-slate-200 mx-2" />
+            <button onClick={() => selectByStatus(true)} className="bg-green-50 text-green-600 px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-tight">Pass Only</button>
+            <button onClick={() => selectByStatus(false)} className="bg-red-50 text-red-600 px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-tight">Fail Only</button>
           </div>
           <div className="flex items-center space-x-2">
             {selectedIds.size > 0 && (
               <div className="flex items-center space-x-2">
-                <span className="text-sm font-bold text-blue-600 mr-2">{selectedIds.size}명 선택됨</span>
-                <button onClick={handleCopyNumbers} className="bg-white border border-slate-300 px-4 py-2 rounded-lg font-bold hover:bg-slate-50 shadow-sm">📋 번호 복사</button>
-                <button onClick={handleBulkSMS} className="bg-indigo-600 text-white px-4 py-2 rounded-lg font-bold hover:bg-indigo-700 shadow-lg">✉ 단체 문자</button>
+                <span className="text-xs font-black text-blue-600 mr-2">{selectedIds.size} SELECTED</span>
+                <button onClick={handleCopyNumbers} className="bg-slate-50 border border-slate-100 px-4 py-2 rounded-xl text-xs font-black hover:bg-slate-100 transition-colors">복사</button>
+                <button onClick={handleBulkSMS} className="bg-blue-600 text-white px-4 py-2 rounded-xl text-xs font-black hover:bg-blue-700 shadow-md transition-all">단체 문자</button>
               </div>
             )}
-            <button onClick={() => setSelectedIds(new Set())} className="text-slate-500 text-sm hover:underline px-2">선택 해제</button>
+            {selectedIds.size > 0 && (
+              <button onClick={() => setSelectedIds(new Set())} className="text-slate-300 text-[10px] font-black uppercase hover:text-slate-600 transition-colors ml-2">Clear</button>
+            )}
           </div>
         </div>
       </div>
 
-      <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+      {/* 학생 목록 테이블 */}
+      <div className="bg-white rounded-[2rem] border border-slate-200 shadow-sm overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-left">
             <thead>
-              <tr className="text-xs uppercase text-slate-500 bg-slate-50 border-b border-slate-100">
-                <th className="px-6 py-3 font-semibold w-12 text-center">
-                  <input type="checkbox" checked={filteredAndSortedStudents.length > 0 && filteredAndSortedStudents.every(s => selectedIds.has(s.id))} onChange={toggleSelectAll} className="w-4 h-4 rounded cursor-pointer" />
+              <tr className="text-[10px] font-black uppercase text-slate-400 bg-slate-50/50 border-b border-slate-100 tracking-[0.2em]">
+                <th className="px-8 py-5 w-12 text-center">
+                  <input type="checkbox" checked={filteredAndSortedStudents.length > 0 && filteredAndSortedStudents.every(s => selectedIds.has(s.id))} onChange={toggleSelectAll} className="w-4 h-4 rounded-lg cursor-pointer accent-blue-600" />
                 </th>
-                <th className="px-6 py-3 font-semibold">이름 (가나다순)</th>
-                <th className="px-6 py-3 font-semibold">학교</th>
-                <th className="px-6 py-3 font-semibold">상태</th>
-                <th className="px-6 py-3 font-semibold">연락처</th>
-                <th className="px-6 py-3 font-semibold text-right">관리</th>
+                <th className="px-8 py-5">Name</th>
+                <th className="px-8 py-5">School</th>
+                <th className="px-8 py-5">Status</th>
+                <th className="px-8 py-5">Phone</th>
+                <th className="px-8 py-5 text-right">Action</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100">
+            <tbody className="divide-y divide-slate-50">
               {filteredAndSortedStudents.length === 0 ? (
-                <tr><td colSpan={6} className="px-6 py-8 text-center text-slate-400">데이터가 없습니다.</td></tr>
+                <tr><td colSpan={6} className="px-8 py-20 text-center text-slate-300 font-bold uppercase tracking-widest text-xs">No students found</td></tr>
               ) : (
                 filteredAndSortedStudents.map((student) => {
                   const status = studentStatusMap[student.id];
                   const hasThreshold = status && status.isPass !== undefined;
+                  const isSelected = selectedIds.has(student.id);
                   return (
-                    <tr key={student.id} className={`hover:bg-blue-50 transition-colors ${selectedIds.has(student.id) ? 'bg-blue-50/50' : ''}`}>
-                      <td className="px-6 py-4 text-center"><input type="checkbox" checked={selectedIds.has(student.id)} onChange={() => toggleSelect(student.id)} className="w-4 h-4 rounded cursor-pointer" /></td>
-                      <td className="px-6 py-4 font-bold text-slate-800">{student.name}</td>
-                      <td className="px-6 py-4 text-sm text-slate-600">{student.school || '-'}</td>
-                      <td className="px-6 py-4">
-                        {hasThreshold ? (
-                          <span className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase ${status.isPass ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>{status.isPass ? 'PASS' : 'FAIL'}</span>
-                        ) : <span className="text-[10px] text-slate-400 font-bold uppercase tracking-tight">Evaluated</span>}
+                    <tr key={student.id} className={`group transition-all ${isSelected ? 'bg-blue-50/50' : 'hover:bg-slate-50'}`}>
+                      <td className="px-8 py-5 text-center">
+                        <input type="checkbox" checked={isSelected} onChange={() => toggleSelect(student.id)} className="w-4 h-4 rounded-lg cursor-pointer accent-blue-600" />
                       </td>
-                      <td className="px-6 py-4 text-sm text-slate-600">{student.phone || '-'}</td>
-                      <td className="px-6 py-4 text-right">
-                        <button onClick={() => handleEditClick(student)} className="text-blue-500 hover:text-blue-700 font-medium text-sm mr-4">수정</button>
-                        <button onClick={() => onDeleteStudent(student.id)} className="text-slate-300 hover:text-red-500">✕</button>
+                      <td className="px-8 py-5 font-black text-slate-800">{student.name}</td>
+                      <td className="px-8 py-5 text-xs font-bold text-slate-500">{student.school || '-'}</td>
+                      <td className="px-8 py-5">
+                        {hasThreshold ? (
+                          <span className={`px-2 py-0.5 rounded-md text-[9px] font-black uppercase tracking-tighter ${status.isPass ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                            {status.isPass ? 'PASS' : 'FAIL'}
+                          </span>
+                        ) : <span className="text-[9px] text-slate-300 font-black uppercase italic">N/A</span>}
+                      </td>
+                      <td className="px-8 py-5 text-xs font-medium text-slate-400">{student.phone || '-'}</td>
+                      <td className="px-8 py-5 text-right">
+                        <div className="flex justify-end gap-3">
+                          <button onClick={() => handleEditClick(student)} className="text-[10px] font-black text-blue-500 hover:text-blue-700 uppercase tracking-widest">수정</button>
+                          <button onClick={() => onDeleteStudent(student.id)} className="text-slate-200 hover:text-red-500 transition-colors">✕</button>
+                        </div>
                       </td>
                     </tr>
                   );
@@ -228,6 +240,66 @@ const StudentManagement: React.FC<StudentManagementProps> = ({
           </table>
         </div>
       </div>
+
+      {/* 수정 모달 (Edit Modal) */}
+      {editingStudent && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
+          <div className="bg-white w-full max-w-lg rounded-[2.5rem] shadow-2xl overflow-hidden animate-in zoom-in duration-200">
+            <div className="p-8 border-b border-slate-50 bg-slate-50/50 flex justify-between items-center">
+              <div>
+                <h3 className="text-xl font-black text-slate-800">학생 정보 수정</h3>
+                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">Update Student Profile</p>
+              </div>
+              <button 
+                onClick={() => setEditingStudent(null)} 
+                className="w-10 h-10 rounded-full bg-white shadow-sm flex items-center justify-center text-slate-400 hover:text-slate-600 transition-all"
+              >✕</button>
+            </div>
+            
+            <form onSubmit={handleUpdate} className="p-8 space-y-6">
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-[10px] font-black text-slate-400 uppercase mb-2 tracking-widest ml-1">이름</label>
+                  <input 
+                    type="text" 
+                    value={editName} 
+                    onChange={(e) => setEditName(e.target.value)} 
+                    className="w-full px-6 py-4 bg-slate-50 rounded-2xl border-none font-bold text-slate-900 outline-none focus:ring-4 focus:ring-blue-50 transition-all" 
+                    required 
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-black text-slate-400 uppercase mb-2 tracking-widest ml-1">학교</label>
+                  <input 
+                    type="text" 
+                    value={editSchool} 
+                    onChange={(e) => setEditSchool(e.target.value)} 
+                    className="w-full px-6 py-4 bg-slate-50 rounded-2xl border-none font-bold text-slate-900 outline-none focus:ring-4 focus:ring-blue-50 transition-all" 
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-black text-slate-400 uppercase mb-2 tracking-widest ml-1">연락처</label>
+                  <input 
+                    type="tel" 
+                    value={editPhone} 
+                    onChange={(e) => setEditPhone(e.target.value)} 
+                    className="w-full px-6 py-4 bg-slate-50 rounded-2xl border-none font-bold text-slate-900 outline-none focus:ring-4 focus:ring-blue-50 transition-all" 
+                  />
+                </div>
+              </div>
+
+              <div className="pt-4">
+                <button 
+                  type="submit" 
+                  className="w-full bg-slate-900 text-white py-5 rounded-[1.5rem] font-black text-lg shadow-xl hover:bg-slate-800 transition-all"
+                >
+                  정보 업데이트
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
