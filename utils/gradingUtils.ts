@@ -8,15 +8,13 @@ export interface SchoolStat {
   studentCount: number;
 }
 
-// Fixed type signature and internal logic to use CalculatedResult with school
 export const calculateExamResults = (
   exam: Exam,
   students: Student[]
 ): (CalculatedResult & { schoolRank?: number, schoolTotal?: number })[] => {
   const { scores, passThreshold } = exam;
-  if (scores.length === 0) return [];
+  if (!scores || scores.length === 0) return [];
   
-  // 점수(또는 맞춘 개수) 내림차순 정렬
   const sortedScores = [...scores].sort((a, b) => b.score - a.score);
   const total = sortedScores.length;
 
@@ -41,14 +39,11 @@ export const calculateExamResults = (
     };
   });
 
-  // 학교 내 등수 계산
   return results.map(res => {
     const sameSchoolResults = results
       .filter(r => r.school === res.school)
       .sort((a, b) => b.score - a.score);
-    
     const schoolRank = sameSchoolResults.findIndex(r => r.score === res.score) + 1;
-    
     return {
       ...res,
       schoolRank,
@@ -81,10 +76,8 @@ export const getExamSummary = (results: CalculatedResult[], totalQuestions: numb
   };
 };
 
-// Removed 'as any' casting as CalculatedResult now includes 'school'
 export const getSchoolBreakdown = (results: CalculatedResult[]): SchoolStat[] => {
   const schoolGroups: Record<string, number[]> = {};
-  
   results.forEach(res => {
     const school = res.school;
     if (!schoolGroups[school]) schoolGroups[school] = [];

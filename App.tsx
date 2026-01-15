@@ -37,7 +37,8 @@ const mapExamToDB = (e: Exam) => ({
   total_questions: e.totalQuestions,
   max_score: e.maxScore,
   pass_threshold: e.passThreshold,
-  question_points: e.questionPoints,
+  // Fix: Property 'questionPoints' does not exist on type 'Exam'.
+  questions: e.questions,
   target_schools: e.targetSchools,
   scores: e.scores
 });
@@ -50,7 +51,8 @@ const mapExamFromDB = (row: any): Exam => ({
   totalQuestions: row.total_questions,
   maxScore: row.max_score,
   passThreshold: row.pass_threshold,
-  questionPoints: row.question_points,
+  // Fix: Object literal may only specify known properties, and 'questionPoints' does not exist in type 'Exam'.
+  questions: row.questions,
   targetSchools: row.target_schools,
   scores: row.scores
 });

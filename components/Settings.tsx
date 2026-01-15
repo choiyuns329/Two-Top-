@@ -40,7 +40,7 @@ CREATE TABLE students (
   created_at BIGINT
 );
 
--- 3. 시험(exams) 테이블 생성
+-- 3. 시험(exams) 테이블 생성 (questions 컬럼 추가됨)
 CREATE TABLE exams (
   id TEXT PRIMARY KEY,
   title TEXT NOT NULL,
@@ -49,7 +49,7 @@ CREATE TABLE exams (
   total_questions INTEGER NOT NULL,
   max_score INTEGER NOT NULL,
   pass_threshold INTEGER,
-  question_points JSONB,
+  questions JSONB,
   target_schools JSONB,
   scores JSONB NOT NULL
 );
@@ -103,8 +103,8 @@ NOTIFY pgrst, 'reload schema';
           <div className="flex items-center gap-4 mb-6">
             <div className="w-12 h-12 bg-white text-red-600 rounded-2xl flex items-center justify-center text-2xl font-black">!</div>
             <div>
-              <h3 className="text-2xl font-black">DB 구조 재설정 (PGRST204 해결)</h3>
-              <p className="text-red-100 text-sm font-bold opacity-90">데이터 저장이 안 될 경우에만 아래 SQL을 다시 실행하세요.</p>
+              <h3 className="text-2xl font-black">DB 구조 재설정 (v3.0 - 정답지 기능)</h3>
+              <p className="text-red-100 text-sm font-bold opacity-90">정답지 기능을 사용하려면 아래 SQL을 다시 실행해야 합니다.</p>
             </div>
           </div>
           
@@ -118,10 +118,10 @@ NOTIFY pgrst, 'reload schema';
           {showSql && (
             <div className="mt-6 bg-black/40 rounded-3xl p-6 border border-white/20">
               <div className="flex justify-between items-center mb-4">
-                <span className="text-[10px] font-black uppercase tracking-widest text-red-200">DB Schema Script</span>
+                <span className="text-[10px] font-black uppercase tracking-widest text-red-200">DB Schema Script v3.0</span>
                 <button onClick={() => copyToClipboard(sqlCode)} className="bg-white text-red-600 px-4 py-2 rounded-lg text-xs font-black">복사</button>
               </div>
-              <pre className="text-[11px] font-mono text-red-100 overflow-x-auto max-h-60">{sqlCode}</pre>
+              <pre className="text-[11px] font-mono text-red-100 overflow-x-auto max-h-60 custom-scrollbar">{sqlCode}</pre>
             </div>
           )}
         </div>
@@ -148,7 +148,7 @@ NOTIFY pgrst, 'reload schema';
           <div className="flex flex-col md:flex-row items-center justify-between gap-8">
             <div className="flex-1">
               <h3 className="text-xl font-black mb-2">데이터 최종 업로드</h3>
-              <p className="text-blue-100 text-sm font-bold">학생 명단과 시험 기록을 서버로 모두 강제 전송합니다. (Unknown 이름 해결법)</p>
+              <p className="text-blue-100 text-sm font-bold">학생 명단과 시험 기록을 서버로 모두 강제 전송합니다.</p>
             </div>
             <button
               onClick={async () => {

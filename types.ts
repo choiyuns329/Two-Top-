@@ -9,11 +9,20 @@ export interface Student {
 }
 
 export type ExamType = 'RANKING' | 'VOCAB' | 'WORD_TEST';
+export type QuestionType = 'MULTIPLE' | 'SUBJECTIVE';
+
+export interface QuestionConfig {
+  number: number;
+  type: QuestionType;
+  correctAnswer: string;
+  point: number;
+}
 
 export interface ScoreEntry {
   studentId: string;
-  score: number; // RANKING일 경우 점수, VOCAB/WORD_TEST일 경우 맞춘 개수
-  wrongQuestions?: number[]; // 틀린 문항 번호 리스트
+  score: number;
+  wrongQuestions?: number[];
+  studentAnswers?: Record<number, string>; // 문항번호: 학생답안
 }
 
 export interface Exam {
@@ -21,9 +30,9 @@ export interface Exam {
   title: string;
   date: string;
   type: ExamType;
-  maxScore: number; // RANKING일 경우 만점, VOCAB/WORD_TEST일 경우 전체 문항 수
+  maxScore: number;
   totalQuestions: number;
-  questionPoints?: number[]; // 문항별 배점 (RANKING 전용)
+  questions?: QuestionConfig[]; // 문항별 상세 설정
   targetSchools?: string[];
   passThreshold?: number; 
   scores: ScoreEntry[];
@@ -45,7 +54,7 @@ export interface ExamSummary {
   totalStudents: number;
   highestScore: number;
   lowestScore: number;
-  questionStats?: Record<number, number>; // 문항별 틀린 학생 수
+  questionStats?: Record<number, number>; 
 }
 
 export enum ViewMode {
