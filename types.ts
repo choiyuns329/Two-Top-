@@ -45,6 +45,9 @@ export interface CalculatedResult {
   score: number;
   rank: number;
   percentile: number;
+  schoolRank?: number;
+  schoolTotal?: number;
+  schoolPercentile?: number;
   isPassed?: boolean;
   wrongQuestions?: number[];
 }

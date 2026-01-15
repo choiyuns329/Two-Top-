@@ -11,14 +11,15 @@ export interface SchoolStat {
 export const calculateExamResults = (
   exam: Exam,
   students: Student[]
-): (CalculatedResult & { schoolRank?: number, schoolTotal?: number })[] => {
+): CalculatedResult[] => {
   const { scores, passThreshold } = exam;
   if (!scores || scores.length === 0) return [];
   
   const sortedScores = [...scores].sort((a, b) => b.score - a.score);
   const total = sortedScores.length;
 
-  const results = sortedScores.map((entry) => {
+  // 전체 결과 기본 산출
+  const baseResults = sortedScores.map((entry) => {
     const student = students.find(s => s.id === entry.studentId);
     const rank = sortedScores.findIndex(s => s.score === entry.score) + 1;
     const percentile = (rank / total) * 100;
@@ -39,15 +40,21 @@ export const calculateExamResults = (
     };
   });
 
-  return results.map(res => {
-    const sameSchoolResults = results
+  // 학교별 석차 추가 계산
+  return baseResults.map(res => {
+    const sameSchoolResults = baseResults
       .filter(r => r.school === res.school)
       .sort((a, b) => b.score - a.score);
+    
     const schoolRank = sameSchoolResults.findIndex(r => r.score === res.score) + 1;
+    const schoolTotal = sameSchoolResults.length;
+    const schoolPercentile = (schoolRank / schoolTotal) * 100;
+
     return {
       ...res,
       schoolRank,
-      schoolTotal: sameSchoolResults.length
+      schoolTotal,
+      schoolPercentile
     };
   });
 };
@@ -79,7 +86,7 @@ export const getExamSummary = (results: CalculatedResult[], totalQuestions: numb
 export const getSchoolBreakdown = (results: CalculatedResult[]): SchoolStat[] => {
   const schoolGroups: Record<string, number[]> = {};
   results.forEach(res => {
-    const school = res.school;
+    const school = res.school || "기타";
     if (!schoolGroups[school]) schoolGroups[school] = [];
     schoolGroups[school].push(res.score);
   });

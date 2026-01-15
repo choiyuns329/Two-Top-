@@ -1,7 +1,7 @@
 
 import React, { useState, useMemo, useEffect } from 'react';
-import { Student, Exam, ScoreEntry, ExamType, QuestionConfig, QuestionType } from '../types.ts';
-import { calculateExamResults, getExamSummary } from '../utils/gradingUtils.ts';
+import { Student, Exam, ScoreEntry, ExamType, QuestionConfig, QuestionType, CalculatedResult } from '../types.ts';
+import { calculateExamResults, getExamSummary, getSchoolBreakdown, SchoolStat } from '../utils/gradingUtils.ts';
 
 interface ExamManagementProps {
   students: Student[];
@@ -24,14 +24,14 @@ const ExamManagement: React.FC<ExamManagementProps> = ({ students, exams, onAddE
   const [noPassThreshold, setNoPassThreshold] = useState(false);
   const [studentSearchTerm, setStudentSearchTerm] = useState('');
   
-  // 정밀 채점용: 학생별 문항 답안 (학생ID -> {문항번호 -> 답안})
+  // 결과 보기 모드: 'OVERALL' (전체 순위) vs 'SCHOOL' (학교별 분석)
+  const [resultViewMode, setResultViewMode] = useState<'OVERALL' | 'SCHOOL'>('OVERALL');
+  
   const [studentAnswers, setStudentAnswers] = useState<Record<string, Record<number, string>>>({});
-  // 간편 채점용: 학생별 점수 (학생ID -> 점수)
   const [simpleScores, setSimpleScores] = useState<Record<string, number>>({});
   
   const [selectedExamId, setSelectedExamId] = useState<string | null>(null);
 
-  // 문항 수나 유형 변경 시 질문지 초기 설정
   useEffect(() => {
     if (!editingExamId && examType !== 'WORD_TEST') {
       const defaultPoint = examType === 'VOCAB' ? 1 : Math.floor(100 / totalQuestions);
@@ -181,6 +181,7 @@ const ExamManagement: React.FC<ExamManagementProps> = ({ students, exams, onAddE
   const selectedExam = exams.find(e => e.id === selectedExamId);
   const results = selectedExam ? calculateExamResults(selectedExam, students) : [];
   const summary = selectedExam ? getExamSummary(results, selectedExam.totalQuestions) : null;
+  const schoolStats = selectedExam ? getSchoolBreakdown(results) : [];
 
   return (
     <div className="space-y-8">
@@ -201,7 +202,7 @@ const ExamManagement: React.FC<ExamManagementProps> = ({ students, exams, onAddE
             key={exam.id}
             onClick={() => setSelectedExamId(exam.id)}
             className={`cursor-pointer p-8 rounded-[2.5rem] border transition-all ${
-              selectedExamId === exam.id ? 'border-slate-900 ring-4 ring-slate-100 bg-white shadow-2xl' : 'border-slate-200 bg-white hover:border-slate-400 shadow-sm'
+              selectedExamId === exam.id ? 'border-slate-900 ring-4 ring-slate-100 bg-white shadow-2xl scale-[1.02]' : 'border-slate-200 bg-white hover:border-slate-400 shadow-sm'
             }`}
           >
             <div className="flex justify-between items-start mb-4">
@@ -226,58 +227,135 @@ const ExamManagement: React.FC<ExamManagementProps> = ({ students, exams, onAddE
 
       {/* Results View */}
       {selectedExam && summary && (
-        <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4">
+        <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
           <div className="bg-white rounded-[3rem] border border-slate-200 shadow-xl overflow-hidden">
-            <div className="bg-slate-900 p-10 text-white flex justify-between items-end">
+            {/* Header Summary */}
+            <div className="bg-slate-900 p-10 text-white flex flex-col md:flex-row justify-between items-start md:items-end gap-6">
               <div>
-                <h3 className="text-3xl font-black mb-2">{selectedExam.title}</h3>
+                <div className="flex items-center gap-3 mb-2">
+                  <h3 className="text-3xl font-black">{selectedExam.title}</h3>
+                  <span className="px-3 py-1 bg-white/10 rounded-full text-[10px] font-black uppercase tracking-widest">{selectedExam.type}</span>
+                </div>
                 <p className="opacity-50 text-xs font-bold uppercase tracking-widest">Performance Analysis Summary</p>
               </div>
-              <div className="text-right">
-                <p className="text-sm font-bold opacity-70">Average</p>
-                <p className="text-4xl font-black text-blue-400">{summary.average.toFixed(1)}</p>
+              
+              <div className="flex items-center gap-4">
+                <div className="text-right border-r border-white/10 pr-6">
+                  <p className="text-[10px] font-black opacity-50 uppercase tracking-widest mb-1">Average</p>
+                  <p className="text-4xl font-black text-blue-400">{summary.average.toFixed(1)}</p>
+                </div>
+                
+                {/* Result Mode Toggler */}
+                <div className="bg-white/5 p-1 rounded-2xl flex">
+                  <button 
+                    onClick={() => setResultViewMode('OVERALL')}
+                    className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase transition-all ${resultViewMode === 'OVERALL' ? 'bg-white text-slate-900 shadow-lg' : 'text-white/40 hover:text-white'}`}
+                  >
+                    전체 순위
+                  </button>
+                  <button 
+                    onClick={() => setResultViewMode('SCHOOL')}
+                    className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase transition-all ${resultViewMode === 'SCHOOL' ? 'bg-white text-slate-900 shadow-lg' : 'text-white/40 hover:text-white'}`}
+                  >
+                    학교별 분석
+                  </button>
+                </div>
               </div>
             </div>
+
+            {/* School Summary Cards (Visible only in SCHOOL mode) */}
+            {resultViewMode === 'SCHOOL' && (
+              <div className="p-8 bg-slate-50 grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-4 border-b border-slate-100">
+                {schoolStats.map(stat => (
+                  <div key={stat.schoolName} className="bg-white p-5 rounded-3xl border border-slate-200 shadow-sm flex flex-col justify-between">
+                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 truncate">{stat.schoolName}</p>
+                    <div>
+                      <p className="text-2xl font-black text-slate-800">{stat.average.toFixed(1)}</p>
+                      <p className="text-[9px] font-bold text-slate-400 uppercase">AVG / {stat.studentCount}명 응시</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
             
             <div className="overflow-x-auto">
               <table className="w-full text-left">
                 <thead>
                   <tr className="bg-slate-50 border-b border-slate-100 text-[10px] font-black uppercase text-slate-400 tracking-widest">
-                    <th className="px-10 py-5">순위</th>
-                    <th className="px-10 py-5">이름</th>
-                    <th className="px-10 py-5">성적</th>
-                    <th className="px-10 py-5">상태</th>
-                    <th className="px-10 py-5">오답 문항</th>
+                    <th className="px-10 py-6">전체 순위</th>
+                    {resultViewMode === 'SCHOOL' && <th className="px-10 py-6">학교 순위</th>}
+                    <th className="px-10 py-6">이름 (학교)</th>
+                    <th className="px-10 py-6">성적</th>
+                    <th className="px-10 py-6">전체 백분위</th>
+                    {resultViewMode === 'SCHOOL' && <th className="px-10 py-6">교내 백분위</th>}
+                    <th className="px-10 py-6">상태</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-50">
-                  {results.map((res) => (
-                    <tr key={res.studentId} className="hover:bg-slate-50 transition-colors">
-                      <td className="px-10 py-5 font-black text-slate-400">{res.rank}위</td>
-                      <td className="px-10 py-5 font-black text-slate-800">{res.name}</td>
-                      <td className="px-10 py-5 font-black text-blue-600 text-lg">{res.score}{selectedExam.type === 'RANKING' ? '점' : '개'}</td>
-                      <td className="px-10 py-5">
-                        {res.isPassed !== undefined ? (
-                          <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase ${res.isPassed ? 'bg-green-100 text-green-600' : 'bg-red-100 text-red-600'}`}>
-                            {res.isPassed ? 'PASS' : 'FAIL'}
+                  {results.map((res) => {
+                    const isTopOverall = res.rank <= 3;
+                    const isTopSchool = res.schoolRank && res.schoolRank <= 3;
+                    return (
+                      <tr key={res.studentId} className="hover:bg-slate-50 transition-colors group">
+                        <td className="px-10 py-6">
+                          <span className={`w-8 h-8 rounded-xl flex items-center justify-center font-black text-xs ${isTopOverall ? 'bg-blue-600 text-white shadow-lg shadow-blue-200' : 'bg-slate-100 text-slate-400'}`}>
+                            {res.rank}
                           </span>
-                        ) : <span className="text-slate-300">-</span>}
-                      </td>
-                      <td className="px-10 py-5 flex flex-wrap gap-1">
-                        {res.wrongQuestions?.length ? res.wrongQuestions.map(q => (
-                          <span key={q} className="w-6 h-6 rounded bg-red-50 text-red-500 flex items-center justify-center text-[10px] font-black border border-red-100">{q}</span>
-                        )) : <span className="text-slate-200">없음</span>}
-                      </td>
-                    </tr>
-                  ))}
+                        </td>
+                        {resultViewMode === 'SCHOOL' && (
+                          <td className="px-10 py-6">
+                            <span className={`w-8 h-8 rounded-xl flex items-center justify-center font-black text-xs border ${isTopSchool ? 'border-orange-500 text-orange-600 bg-orange-50' : 'border-slate-200 text-slate-400'}`}>
+                              {res.schoolRank}
+                            </span>
+                            <span className="text-[9px] font-bold text-slate-300 ml-1">/ {res.schoolTotal}</span>
+                          </td>
+                        )}
+                        <td className="px-10 py-6">
+                          <p className="font-black text-slate-800">{res.name}</p>
+                          <p className="text-[10px] text-slate-400 font-bold uppercase tracking-tight">{res.school}</p>
+                        </td>
+                        <td className="px-10 py-6">
+                          <span className={`text-xl font-black ${isTopOverall ? 'text-blue-600' : 'text-slate-900'}`}>
+                            {res.score}
+                            <span className="text-xs ml-0.5 opacity-40 font-bold">{selectedExam.type === 'RANKING' ? '점' : '개'}</span>
+                          </span>
+                        </td>
+                        <td className="px-10 py-6">
+                          <span className={`px-2 py-1 rounded text-[10px] font-black ${res.percentile <= 20 ? 'bg-blue-50 text-blue-600' : 'bg-slate-100 text-slate-400'}`}>
+                            상위 {res.percentile.toFixed(0)}%
+                          </span>
+                        </td>
+                        {resultViewMode === 'SCHOOL' && (
+                          <td className="px-10 py-6">
+                            <span className={`px-2 py-1 rounded text-[10px] font-black ${res.schoolPercentile && res.schoolPercentile <= 20 ? 'bg-orange-50 text-orange-600' : 'bg-slate-50 text-slate-300'}`}>
+                              상위 {res.schoolPercentile?.toFixed(0)}%
+                            </span>
+                          </td>
+                        )}
+                        <td className="px-10 py-6">
+                          {res.isPassed !== undefined ? (
+                            <span className={`px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest ${res.isPassed ? 'bg-green-100 text-green-600' : 'bg-red-100 text-red-600'}`}>
+                              {res.isPassed ? 'PASS' : 'FAIL'}
+                            </span>
+                          ) : <span className="text-slate-200">-</span>}
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
+            </div>
+            
+            <div className="p-6 bg-slate-50 border-t border-slate-100 text-center">
+              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest italic">
+                * {resultViewMode === 'OVERALL' ? '전체 학생을 등수순으로 나열 중입니다.' : '각 학교 내 등수와 백분위를 포함하여 분석 중입니다.'}
+              </p>
             </div>
           </div>
         </div>
       )}
 
-      {/* Add/Edit Exam Modal */}
+      {/* Add/Edit Exam Modal (Same as before) */}
       {isAdding && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-white w-full max-w-5xl rounded-[3rem] shadow-2xl overflow-hidden max-h-[95vh] flex flex-col animate-in zoom-in duration-200">
