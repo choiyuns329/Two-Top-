@@ -301,7 +301,7 @@ const ExamManagement: React.FC<ExamManagementProps> = ({ students, exams, onAddE
                     <th className="px-10 py-6">이름 (학교)</th>
                     <th className="px-10 py-6">성적</th>
                     <th className="px-10 py-6">상태</th>
-                    <th className="px-10 py-6">오답 문항</th>
+                    {selectedExam.type !== 'WORD_TEST' && <th className="px-10 py-6">오답 문항</th>}
                     <th className="px-10 py-6">백분위</th>
                   </tr>
                 </thead>
@@ -341,19 +341,21 @@ const ExamManagement: React.FC<ExamManagementProps> = ({ students, exams, onAddE
                             </span>
                           ) : <span className="text-slate-200">-</span>}
                         </td>
-                        <td className="px-10 py-6">
-                          <div className="flex flex-wrap gap-1 max-w-[200px]">
-                            {res.wrongQuestions && res.wrongQuestions.length > 0 ? (
-                              res.wrongQuestions.map(qNum => (
-                                <span key={qNum} className="px-2 py-1 bg-red-50 text-red-500 text-[10px] font-black rounded-lg border border-red-100">
-                                  {qNum}
-                                </span>
-                              ))
-                            ) : (
-                              <span className="text-[10px] font-black text-blue-500 uppercase tracking-widest">만점 ✨</span>
-                            )}
-                          </div>
-                        </td>
+                        {selectedExam.type !== 'WORD_TEST' && (
+                          <td className="px-10 py-6">
+                            <div className="flex flex-wrap gap-1 max-w-[200px]">
+                              {res.wrongQuestions && res.wrongQuestions.length > 0 ? (
+                                res.wrongQuestions.map(qNum => (
+                                  <span key={qNum} className="px-2 py-1 bg-red-50 text-red-500 text-[10px] font-black rounded-lg border border-red-100">
+                                    {qNum}
+                                  </span>
+                                ))
+                              ) : (
+                                <span className="text-[10px] font-black text-blue-500 uppercase tracking-widest">만점 ✨</span>
+                              )}
+                            </div>
+                          </td>
+                        )}
                         <td className="px-10 py-6">
                            <div className="flex flex-col gap-1">
                              <span className={`px-2 py-1 rounded text-[10px] font-black inline-block w-fit ${res.percentile <= 20 ? 'bg-blue-50 text-blue-600' : 'bg-slate-100 text-slate-400'}`}>
