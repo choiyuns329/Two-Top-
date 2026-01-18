@@ -460,7 +460,7 @@ const ExamManagement: React.FC<ExamManagementProps> = ({ students, exams, onAddE
                 </div>
               </div>
 
-              {/* Step 2: Answer Key (Restored) */}
+              {/* Step 2: Answer Key */}
               {examType !== 'WORD_TEST' && (
                 <div className="space-y-4">
                   <div className="flex justify-between items-center">
@@ -531,10 +531,13 @@ const ExamManagement: React.FC<ExamManagementProps> = ({ students, exams, onAddE
                                onChange={(e) => updateSimpleScore(student.id, e.target.value === '' ? 0 : Number(e.target.value))}
                                className="w-24 px-5 py-3 bg-white border-none rounded-2xl text-center font-black text-blue-600 outline-none shadow-sm text-lg"
                                onKeyDown={(e) => {
+                                 // ArrowDown/ArrowUp default behavior prevents (numeric increment)
                                  if (e.key === 'ArrowDown') {
+                                   e.preventDefault(); // Prevent score decrement
                                    const next = filteredStudentsForInput[sIndex + 1];
                                    if (next) document.getElementById(`ans-${next.id}-direct`)?.focus();
                                  } else if (e.key === 'ArrowUp') {
+                                   e.preventDefault(); // Prevent score increment
                                    const prev = filteredStudentsForInput[sIndex - 1];
                                    if (prev) document.getElementById(`ans-${prev.id}-direct`)?.focus();
                                  }
