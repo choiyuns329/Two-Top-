@@ -186,7 +186,7 @@ const StudentDetailView: React.FC<StudentDetailViewProps> = ({ students, exams }
           <div className="bg-white p-8 rounded-[3rem] border border-slate-200 shadow-sm">
             <h3 className="text-sm font-black text-slate-800 mb-8 flex items-center gap-2">
               <span className="w-2 h-6 bg-blue-600 rounded-full"></span>
-              성장 곡선 및 평균 대비 분석
+              성장 곡선 및 평균 대비 분석(*상승,하락은 참고 x / 평균 이상인지 이하인지만 체크)
             </h3>
             <div className="h-80">
               <ResponsiveContainer width="100%" height="100%">
