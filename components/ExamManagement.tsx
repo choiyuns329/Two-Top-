@@ -24,7 +24,6 @@ const ExamManagement: React.FC<ExamManagementProps> = ({ students, exams, onAddE
   const [noPassThreshold, setNoPassThreshold] = useState(false);
   const [studentSearchTerm, setStudentSearchTerm] = useState('');
   
-  // 결과 보기 모드: 'OVERALL' (전체 순위) vs 'SCHOOL' (학교별 분석)
   const [resultViewMode, setResultViewMode] = useState<'OVERALL' | 'SCHOOL'>('OVERALL');
   
   const [studentAnswers, setStudentAnswers] = useState<Record<string, Record<number, string>>>({});
@@ -32,7 +31,6 @@ const ExamManagement: React.FC<ExamManagementProps> = ({ students, exams, onAddE
   
   const [selectedExamId, setSelectedExamId] = useState<string | null>(null);
 
-  // 학생 데이터로부터 고유한 학교 리스트 추출
   const availableSchools = useMemo(() => {
     const schools = students
       .map(s => s.school?.trim())
@@ -94,7 +92,6 @@ const ExamManagement: React.FC<ExamManagementProps> = ({ students, exams, onAddE
     }
 
     let scores: ScoreEntry[] = [];
-
     if (examType === 'WORD_TEST') {
       scores = students
         .filter(s => simpleScores[s.id] !== undefined)
@@ -110,7 +107,6 @@ const ExamManagement: React.FC<ExamManagementProps> = ({ students, exams, onAddE
           const answers = studentAnswers[s.id] || {};
           let totalScore = 0;
           const wrongQuestions: number[] = [];
-
           questions.forEach(q => {
             const studentAns = (answers[q.number] || '').trim();
             if (q.type === 'MULTIPLE') {
@@ -124,7 +120,6 @@ const ExamManagement: React.FC<ExamManagementProps> = ({ students, exams, onAddE
               else wrongQuestions.push(q.number);
             }
           });
-
           return {
             studentId: s.id,
             score: totalScore,
@@ -149,7 +144,6 @@ const ExamManagement: React.FC<ExamManagementProps> = ({ students, exams, onAddE
 
     if (editingExamId) onUpdateExam(examData);
     else onAddExam(examData);
-    
     setIsAdding(false);
     resetForm();
   };
@@ -190,6 +184,30 @@ const ExamManagement: React.FC<ExamManagementProps> = ({ students, exams, onAddE
     setSelectedSchools(prev => 
       prev.includes(school) ? prev.filter(s => s !== school) : [...prev, school]
     );
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent, studentId: string, qNum: number, sIndex: number) => {
+    if (e.key === 'ArrowRight') {
+      const next = document.getElementById(`ans-${studentId}-${qNum + 1}`);
+      if (next) (next as HTMLInputElement).focus();
+    } else if (e.key === 'ArrowLeft') {
+      const prev = document.getElementById(`ans-${studentId}-${qNum - 1}`);
+      if (prev) (prev as HTMLInputElement).focus();
+    } else if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      const nextStudent = filteredStudentsForInput[sIndex + 1];
+      if (nextStudent) {
+        const down = document.getElementById(`ans-${nextStudent.id}-${qNum}`);
+        if (down) (down as HTMLInputElement).focus();
+      }
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      const prevStudent = filteredStudentsForInput[sIndex - 1];
+      if (prevStudent) {
+        const up = document.getElementById(`ans-${prevStudent.id}-${qNum}`);
+        if (up) (up as HTMLInputElement).focus();
+      }
+    }
   };
 
   const selectedExam = exams.find(e => e.id === selectedExamId);
@@ -243,7 +261,6 @@ const ExamManagement: React.FC<ExamManagementProps> = ({ students, exams, onAddE
       {selectedExam && summary && (
         <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
           <div className="bg-white rounded-[3rem] border border-slate-200 shadow-xl overflow-hidden">
-            {/* Header Summary */}
             <div className="bg-slate-900 p-10 text-white flex flex-col md:flex-row justify-between items-start md:items-end gap-6">
               <div>
                 <div className="flex items-center gap-3 mb-2">
@@ -258,8 +275,6 @@ const ExamManagement: React.FC<ExamManagementProps> = ({ students, exams, onAddE
                   <p className="text-[10px] font-black opacity-50 uppercase tracking-widest mb-1">Average</p>
                   <p className="text-4xl font-black text-blue-400">{summary.average.toFixed(1)}</p>
                 </div>
-                
-                {/* Result Mode Toggler */}
                 <div className="bg-white/5 p-1 rounded-2xl flex">
                   <button 
                     onClick={() => setResultViewMode('OVERALL')}
@@ -277,7 +292,6 @@ const ExamManagement: React.FC<ExamManagementProps> = ({ students, exams, onAddE
               </div>
             </div>
 
-            {/* School Summary Cards (Visible only in SCHOOL mode) */}
             {resultViewMode === 'SCHOOL' && (
               <div className="p-8 bg-slate-50 grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-4 border-b border-slate-100">
                 {schoolStats.map(stat => (
@@ -308,7 +322,6 @@ const ExamManagement: React.FC<ExamManagementProps> = ({ students, exams, onAddE
                 <tbody className="divide-y divide-slate-50">
                   {results.map((res) => {
                     const isTopOverall = res.rank <= 3;
-                    const isTopSchool = res.schoolRank && res.schoolRank <= 3;
                     return (
                       <tr key={res.studentId} className="hover:bg-slate-50 transition-colors group">
                         <td className="px-10 py-6">
@@ -318,7 +331,7 @@ const ExamManagement: React.FC<ExamManagementProps> = ({ students, exams, onAddE
                         </td>
                         {resultViewMode === 'SCHOOL' && (
                           <td className="px-10 py-6">
-                            <span className={`w-8 h-8 rounded-xl flex items-center justify-center font-black text-xs border ${isTopSchool ? 'border-orange-500 text-orange-600 bg-orange-50' : 'border-slate-200 text-slate-400'}`}>
+                            <span className={`w-8 h-8 rounded-xl flex items-center justify-center font-black text-xs border ${res.schoolRank && res.schoolRank <= 3 ? 'border-orange-500 text-orange-600 bg-orange-50' : 'border-slate-200 text-slate-400'}`}>
                               {res.schoolRank}
                             </span>
                             <span className="text-[9px] font-bold text-slate-300 ml-1">/ {res.schoolTotal}</span>
@@ -361,11 +374,6 @@ const ExamManagement: React.FC<ExamManagementProps> = ({ students, exams, onAddE
                              <span className={`px-2 py-1 rounded text-[10px] font-black inline-block w-fit ${res.percentile <= 20 ? 'bg-blue-50 text-blue-600' : 'bg-slate-100 text-slate-400'}`}>
                                전체 상위 {res.percentile.toFixed(0)}%
                              </span>
-                             {resultViewMode === 'SCHOOL' && (
-                               <span className={`px-2 py-1 rounded text-[10px] font-black inline-block w-fit ${res.schoolPercentile && res.schoolPercentile <= 20 ? 'bg-orange-50 text-orange-600' : 'bg-slate-50 text-slate-300'}`}>
-                                 교내 상위 {res.schoolPercentile?.toFixed(0)}%
-                               </span>
-                             )}
                            </div>
                         </td>
                       </tr>
@@ -373,12 +381,6 @@ const ExamManagement: React.FC<ExamManagementProps> = ({ students, exams, onAddE
                   })}
                 </tbody>
               </table>
-            </div>
-            
-            <div className="p-6 bg-slate-50 border-t border-slate-100 text-center">
-              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest italic">
-                * {resultViewMode === 'OVERALL' ? '전체 학생을 등수순으로 나열 중입니다.' : '각 학교 내 등수와 백분위를 포함하여 분석 중입니다.'}
-              </p>
             </div>
           </div>
         </div>
@@ -418,20 +420,17 @@ const ExamManagement: React.FC<ExamManagementProps> = ({ students, exams, onAddE
                   <input type="text" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="예: 3월 모의고사" className="w-full px-5 py-4 bg-slate-50 rounded-2xl border-none outline-none font-black text-slate-800" />
                 </div>
                 <div>
-                  <label className="block text-[10px] font-black text-slate-400 uppercase mb-3 tracking-widest">총 문항/만점</label>
+                  <label className="block text-[10px] font-black text-slate-400 uppercase mb-3 tracking-widest">총 문항</label>
                   <input type="number" value={totalQuestions} onChange={(e) => setTotalQuestions(Number(e.target.value))} className="w-full px-5 py-4 bg-slate-50 rounded-2xl border-none outline-none font-black text-slate-800" />
                 </div>
                 <div>
-                  <label className="block text-[10px] font-black text-slate-400 uppercase mb-3 tracking-widest">
-                    통과 기준({examType === 'RANKING' ? '점' : '개'})
-                  </label>
+                  <label className="block text-[10px] font-black text-slate-400 uppercase mb-3 tracking-widest">통과 기준</label>
                   <div className="flex items-center gap-3">
                     <input 
                       type="number" 
                       value={passThreshold} 
                       onChange={(e) => setPassThreshold(e.target.value === '' ? '' : Number(e.target.value))}
                       disabled={noPassThreshold}
-                      placeholder="기준값"
                       className={`w-full px-5 py-4 rounded-2xl border-none outline-none font-black ${noPassThreshold ? 'bg-slate-100 text-slate-300' : 'bg-blue-50 text-blue-600'}`}
                     />
                     <label className="flex items-center gap-2 cursor-pointer whitespace-nowrap">
@@ -442,39 +441,26 @@ const ExamManagement: React.FC<ExamManagementProps> = ({ students, exams, onAddE
                 </div>
               </div>
 
-              {/* Step 1.5: Target Schools Selection */}
+              {/* Step 1.5: Target Schools */}
               <div className="space-y-4">
                 <div className="flex justify-between items-center">
-                  <h4 className="text-sm font-black text-slate-800 uppercase tracking-widest">대상 학교 선택 (Target Schools)</h4>
-                  <button 
-                    onClick={() => setSelectedSchools([])} 
-                    className="text-[10px] font-black text-slate-400 hover:text-slate-900 uppercase underline"
-                  >
-                    전체 학생 (선택 해제)
-                  </button>
+                  <h4 className="text-sm font-black text-slate-800 uppercase tracking-widest">대상 학교 선택</h4>
+                  <button onClick={() => setSelectedSchools([])} className="text-[10px] font-black text-slate-400 hover:text-slate-900 uppercase underline">전체 학생</button>
                 </div>
                 <div className="flex flex-wrap gap-2">
-                  {availableSchools.length > 0 ? (
-                    availableSchools.map(school => (
-                      <button
-                        key={school}
-                        onClick={() => toggleSchoolSelection(school)}
-                        className={`px-5 py-3 rounded-2xl text-xs font-black transition-all border-2 ${
-                          selectedSchools.includes(school)
-                            ? 'bg-slate-900 border-slate-900 text-white shadow-lg'
-                            : 'bg-white border-slate-100 text-slate-400 hover:border-slate-300'
-                        }`}
-                      >
-                        {school}
-                      </button>
-                    ))
-                  ) : (
-                    <p className="text-xs text-slate-400 font-bold py-2">등록된 학교가 없습니다. 학생 명단에서 학교를 입력해주세요.</p>
-                  )}
+                  {availableSchools.map(school => (
+                    <button
+                      key={school}
+                      onClick={() => toggleSchoolSelection(school)}
+                      className={`px-5 py-3 rounded-2xl text-xs font-black transition-all border-2 ${selectedSchools.includes(school) ? 'bg-slate-900 border-slate-900 text-white shadow-lg' : 'bg-white border-slate-100 text-slate-400 hover:border-slate-300'}`}
+                    >
+                      {school}
+                    </button>
+                  ))}
                 </div>
               </div>
 
-              {/* Step 2: Answer Key (Only for RANKING/VOCAB) */}
+              {/* Step 2: Answer Key (Restored) */}
               {examType !== 'WORD_TEST' && (
                 <div className="space-y-4">
                   <div className="flex justify-between items-center">
@@ -505,7 +491,7 @@ const ExamManagement: React.FC<ExamManagementProps> = ({ students, exams, onAddE
                               className="w-full bg-white border-none rounded-lg text-center text-xs font-black p-2 shadow-sm"
                             />
                           ) : (
-                            <div className="w-full bg-slate-200 text-[9px] font-black text-slate-400 flex items-center justify-center rounded-lg h-8">서술형</div>
+                            <div className="w-full bg-slate-200 text-[9px] font-black text-slate-400 flex items-center justify-center rounded-lg h-8 uppercase">서술형</div>
                           )}
                           <input 
                             type="number" 
@@ -524,111 +510,90 @@ const ExamManagement: React.FC<ExamManagementProps> = ({ students, exams, onAddE
               {/* Step 3: Grading Grid */}
               <div className="space-y-6">
                 <div className="flex justify-between items-center border-b border-slate-100 pb-4">
-                  <div className="flex items-center gap-3">
-                    <h4 className="text-sm font-black text-slate-800 uppercase tracking-widest">
-                      {examType === 'WORD_TEST' ? '학생별 점수 직접 입력' : '2. 학생별 답안 입력'}
-                    </h4>
-                    <span className="bg-slate-100 px-2 py-0.5 rounded text-[9px] font-black text-slate-500">
-                      {filteredStudentsForInput.length}명
-                    </span>
-                  </div>
-                  <input 
-                    type="text" 
-                    placeholder="학생 이름 검색..." 
-                    value={studentSearchTerm}
-                    onChange={(e) => setStudentSearchTerm(e.target.value)}
-                    className="px-5 py-3 bg-slate-50 rounded-2xl text-xs font-bold border-none outline-none"
-                  />
+                  <h4 className="text-sm font-black text-slate-800 uppercase tracking-widest">2. 학생별 답안 입력 (화살표 키로 이동 가능)</h4>
+                  <input type="text" placeholder="학생 이름 검색..." value={studentSearchTerm} onChange={(e) => setStudentSearchTerm(e.target.value)} className="px-5 py-3 bg-slate-50 rounded-2xl text-xs font-bold border-none outline-none" />
                 </div>
 
                 <div className="space-y-4">
-                  {filteredStudentsForInput.length > 0 ? (
-                    filteredStudentsForInput.map((student) => (
-                      <div key={student.id} className="p-6 bg-slate-50 rounded-[2rem] border border-slate-100 transition-all hover:shadow-md">
-                        <div className="flex justify-between items-center mb-4">
-                          <div>
-                            <span className="text-lg font-black text-slate-800">{student.name}</span>
-                            <span className="ml-2 text-[10px] font-bold text-slate-400 uppercase">{student.school}</span>
-                          </div>
-                          
-                          {examType === 'WORD_TEST' ? (
-                            <div className="flex items-center gap-3">
-                              <span className="text-[10px] font-black text-slate-400 uppercase">최종 {examType === 'RANKING' ? '점수' : '개수'}</span>
-                              <input 
-                                type="number" 
-                                value={simpleScores[student.id] ?? ''} 
-                                onChange={(e) => updateSimpleScore(student.id, e.target.value === '' ? 0 : Number(e.target.value))}
-                                placeholder="0"
-                                className="w-24 px-5 py-3 bg-white border-none rounded-2xl text-center font-black text-blue-600 outline-none shadow-sm text-lg"
-                              />
-                            </div>
-                          ) : (
-                            <div className="text-right">
-                              <p className="text-[10px] font-black text-slate-400 uppercase mb-1">실시간 계산 점수</p>
-                              <p className="text-2xl font-black text-blue-600">
-                                {questions.reduce((acc, q) => {
-                                  const ans = (studentAnswers[student.id]?.[q.number] || '').trim();
-                                  if (q.type === 'MULTIPLE') return acc + (ans === q.correctAnswer && q.correctAnswer !== '' ? q.point : 0);
-                                  return acc + (ans === 'O' ? q.point : 0);
-                                }, 0)}
-                                <span className="text-xs font-bold ml-1 opacity-50">{examType === 'RANKING' ? '점' : '개'}</span>
-                              </p>
-                            </div>
-                          )}
+                  {filteredStudentsForInput.map((student, sIndex) => (
+                    <div key={student.id} className="p-6 bg-slate-50 rounded-[2rem] border border-slate-100 transition-all hover:bg-white">
+                      <div className="flex justify-between items-center mb-4">
+                        <div>
+                          <span className="text-lg font-black text-slate-800">{student.name}</span>
+                          <span className="ml-2 text-[10px] font-bold text-slate-400 uppercase">{student.school}</span>
                         </div>
-
-                        {examType !== 'WORD_TEST' && (
-                          <div className="grid grid-cols-5 sm:grid-cols-10 md:grid-cols-12 lg:grid-cols-20 gap-2">
-                            {questions.map((q) => {
-                              const val = studentAnswers[student.id]?.[q.number] || '';
-                              const isCorrect = q.type === 'MULTIPLE' ? (val.trim() === q.correctAnswer && q.correctAnswer !== '') : (val === 'O');
-                              const hasValue = val.trim() !== '';
-                              
-                              return (
-                                <div key={q.number} className="flex flex-col items-center gap-1">
-                                  <span className="text-[9px] font-black text-slate-400">{q.number}</span>
-                                  {q.type === 'MULTIPLE' ? (
-                                    <input 
-                                      type="text"
-                                      value={val}
-                                      onChange={(e) => updateStudentAnswer(student.id, q.number, e.target.value)}
-                                      className={`w-full text-center py-2 rounded-xl text-xs font-black border-2 transition-all outline-none ${
-                                        !hasValue ? 'bg-white border-slate-100' : isCorrect ? 'bg-green-50 border-green-500 text-green-700' : 'bg-red-50 border-red-500 text-red-700'
-                                      }`}
-                                    />
-                                  ) : (
-                                    <button 
-                                      onClick={() => updateStudentAnswer(student.id, q.number, val === 'O' ? 'X' : 'O')}
-                                      className={`w-full py-2 rounded-xl text-[10px] font-black border-2 transition-all ${
-                                        val === 'O' ? 'bg-green-500 border-green-500 text-white' : 'bg-white border-slate-200 text-slate-300'
-                                      }`}
-                                    >
-                                      {val === 'O' ? 'O' : 'X'}
-                                    </button>
-                                  )}
-                                </div>
-                              );
-                            })}
+                        {examType === 'WORD_TEST' ? (
+                          <div className="flex items-center gap-3">
+                             <input 
+                               id={`ans-${student.id}-direct`}
+                               type="number" 
+                               value={simpleScores[student.id] ?? ''} 
+                               onChange={(e) => updateSimpleScore(student.id, e.target.value === '' ? 0 : Number(e.target.value))}
+                               className="w-24 px-5 py-3 bg-white border-none rounded-2xl text-center font-black text-blue-600 outline-none shadow-sm text-lg"
+                               onKeyDown={(e) => {
+                                 if (e.key === 'ArrowDown') {
+                                   const next = filteredStudentsForInput[sIndex + 1];
+                                   if (next) document.getElementById(`ans-${next.id}-direct`)?.focus();
+                                 } else if (e.key === 'ArrowUp') {
+                                   const prev = filteredStudentsForInput[sIndex - 1];
+                                   if (prev) document.getElementById(`ans-${prev.id}-direct`)?.focus();
+                                 }
+                               }}
+                             />
                           </div>
+                        ) : (
+                          <p className="text-2xl font-black text-blue-600">
+                            {questions.reduce((acc, q) => {
+                              const ans = (studentAnswers[student.id]?.[q.number] || '').trim();
+                              return acc + (q.type === 'MULTIPLE' ? (ans === q.correctAnswer && q.correctAnswer !== '' ? q.point : 0) : (ans === 'O' ? q.point : 0));
+                            }, 0)}
+                            <span className="text-[10px] ml-1 opacity-40">{examType === 'RANKING' ? '점' : '개'}</span>
+                          </p>
                         )}
                       </div>
-                    ))
-                  ) : (
-                    <div className="py-20 text-center bg-slate-50 rounded-[2.5rem] border-2 border-dashed border-slate-200">
-                      <p className="text-slate-400 font-black text-sm uppercase tracking-widest">해당하는 학생이 없습니다.</p>
-                      <p className="text-[10px] text-slate-300 font-bold mt-1">학교 선택 혹은 검색어를 확인해주세요.</p>
+
+                      {examType !== 'WORD_TEST' && (
+                        <div className="grid grid-cols-5 sm:grid-cols-10 md:grid-cols-12 lg:grid-cols-20 gap-2">
+                          {questions.map((q) => {
+                            const val = studentAnswers[student.id]?.[q.number] || '';
+                            const isCorrect = q.type === 'MULTIPLE' ? (val.trim() === q.correctAnswer && q.correctAnswer !== '') : (val === 'O');
+                            return (
+                              <div key={q.number} className="flex flex-col items-center gap-1">
+                                <span className="text-[9px] font-black text-slate-400">{q.number}</span>
+                                {q.type === 'MULTIPLE' ? (
+                                  <input 
+                                    id={`ans-${student.id}-${q.number}`}
+                                    type="text"
+                                    value={val}
+                                    onFocus={(e) => e.target.select()}
+                                    onChange={(e) => updateStudentAnswer(student.id, q.number, e.target.value)}
+                                    onKeyDown={(e) => handleKeyDown(e, student.id, q.number, sIndex)}
+                                    className={`w-full text-center py-2 rounded-xl text-xs font-black border-2 transition-all outline-none ${!val ? 'bg-white border-slate-100' : isCorrect ? 'bg-green-50 border-green-500 text-green-700' : 'bg-red-50 border-red-500 text-red-700'}`}
+                                  />
+                                ) : (
+                                  <button 
+                                    id={`ans-${student.id}-${q.number}`}
+                                    onClick={() => updateStudentAnswer(student.id, q.number, val === 'O' ? 'X' : 'O')}
+                                    onKeyDown={(e) => handleKeyDown(e, student.id, q.number, sIndex)}
+                                    className={`w-full py-2 rounded-xl text-[10px] font-black border-2 transition-all ${val === 'O' ? 'bg-green-500 border-green-500 text-white' : 'bg-white border-slate-200 text-slate-300'}`}
+                                  >
+                                    {val === 'O' ? 'O' : 'X'}
+                                  </button>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
                     </div>
-                  )}
+                  ))}
                 </div>
               </div>
             </div>
 
             <div className="p-10 border-t border-slate-100 bg-slate-50/50">
-              <button 
-                onClick={handleCreateOrUpdateExam} 
-                className="w-full bg-slate-900 text-white py-6 rounded-[2rem] font-black text-xl shadow-2xl hover:bg-slate-800 transition-all active:scale-[0.98]"
-              >
-                {editingExamId ? '성적 데이터 업데이트' : '최종 성적 저장 및 동기화'}
+              <button onClick={handleCreateOrUpdateExam} className="w-full bg-slate-900 text-white py-6 rounded-[2rem] font-black text-xl shadow-2xl hover:bg-slate-800 transition-all active:scale-[0.98]">
+                데이터 저장 및 동기화
               </button>
             </div>
           </div>
